@@ -1,0 +1,16 @@
+{
+  "$schema": "https://modelcontextprotocol.io/schema/mcp.json",
+  "mcpServers": {
+   "exa": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "exa-mcp-server",
+        "tools=web_search_exa"
+      ],
+      "env": {
+        "EXA_API_KEY": "080b879b-30f4-4a71-b995-84b74b29437e"
+      }
+    }
+  }
+}

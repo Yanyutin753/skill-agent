@@ -1,0 +1,19 @@
+# FastAPI Agent Dependencies
+
+# Web Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+
+# HTTP Client
+httpx==0.26.0
+
+# Data Validation
+pydantic==2.5.3
+
+# YAML Support
+pyyaml==6.0.1
+
+# Optional: For better dev experience
+python-multipart==0.0.6
+
+anthropic
