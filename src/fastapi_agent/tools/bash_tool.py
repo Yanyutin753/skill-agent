@@ -37,6 +37,25 @@ class BashTool(Tool):
             "required": ["command"],
         }
 
+    @property
+    def instructions(self) -> str:
+        """Bash tool usage instructions."""
+        return """
+<bash_tool_usage>
+When using the bash tool:
+- Always use absolute paths when possible to avoid path resolution issues
+- Check command output carefully before proceeding with subsequent actions
+- For critical operations, verify the result with additional commands
+- Use timeout parameter for potentially long-running commands
+- Remember that commands run in a non-interactive shell environment
+</bash_tool_usage>
+"""
+
+    @property
+    def add_instructions_to_prompt(self) -> bool:
+        """Add bash tool instructions to system prompt."""
+        return True
+
     async def execute(self, command: str, timeout: int = 30) -> ToolResult:
         """Execute bash command."""
         try:

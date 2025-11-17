@@ -2,12 +2,17 @@
 
 import time
 from pathlib import Path
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Optional
 
 from fastapi_agent.core.agent_logger import AgentLogger
 from fastapi_agent.core.llm_client import LLMClient
 from fastapi_agent.core.token_manager import TokenManager
+from fastapi_agent.core.prompt_builder import (
+    SystemPromptConfig,
+    SystemPromptBuilder,
+)
 from fastapi_agent.schemas.message import Message
+from fastapi_agent.skills.skill_loader import SkillLoader
 from fastapi_agent.tools.base import Tool, ToolResult
 
 
@@ -17,7 +22,8 @@ class Agent:
     def __init__(
         self,
         llm_client: LLMClient,
-        system_prompt: str,
+        system_prompt: Optional[str] = None,
+        prompt_config: Optional[SystemPromptConfig] = None,
         tools: list[Tool] | None = None,
         max_steps: int = 50,
         workspace_dir: str = "./workspace",
@@ -26,12 +32,30 @@ class Agent:
         enable_logging: bool = True,
         log_dir: str | None = None,
         name: str | None = None,
+        skill_loader: Optional[SkillLoader] = None,
     ) -> None:
+        """Initialize Agent.
+
+        Args:
+            llm_client: LLM client
+            system_prompt: 系统提示字符串(旧方式,向后兼容)
+            prompt_config: 系统提示配置(新方式,推荐)
+            tools: 工具列表
+            max_steps: 最大执行步数
+            workspace_dir: 工作空间目录
+            token_limit: Token 限制
+            enable_summarization: 是否启用自动摘要
+            enable_logging: 是否启用日志
+            log_dir: 日志目录
+            name: Agent 名称
+            skill_loader: Skill 加载器(用于注入 skills 元数据到系统提示)
+        """
         self.llm = llm_client
         self.name = name  # Agent name for team coordination
         self.tools = {tool.name: tool for tool in (tools or [])}
         self.max_steps = max_steps
         self.workspace_dir = Path(workspace_dir)
+        self.skill_loader = skill_loader
 
         # Initialize Token Manager
         self.token_manager = TokenManager(
@@ -50,24 +74,65 @@ class Agent:
         # Ensure workspace exists
         self.workspace_dir.mkdir(parents=True, exist_ok=True)
 
-        # Add workspace info to system prompt
-        if "Current Workspace" not in system_prompt:
-            workspace_info = (
-                f"\n\n## Current Workspace\n"
-                f"You are currently working in: `{self.workspace_dir.absolute()}`\n"
-                f"All relative paths will be resolved relative to this directory."
-            )
-            system_prompt = system_prompt + workspace_info
-
-        self.system_prompt = system_prompt
+        # Build system prompt
+        if prompt_config:
+            # 新方式: 使用结构化配置
+            self.system_prompt = self._build_structured_prompt(prompt_config)
+        elif system_prompt:
+            # 旧方式: 直接使用字符串(向后兼容)
+            if "Current Workspace" not in system_prompt and "workspace_info" not in system_prompt:
+                workspace_info = (
+                    f"\n\n## Current Workspace\n"
+                    f"You are currently working in: `{self.workspace_dir.absolute()}`\n"
+                    f"All relative paths will be resolved relative to this directory."
+                )
+                system_prompt = system_prompt + workspace_info
+            self.system_prompt = system_prompt
+        else:
+            # 默认提示
+            self.system_prompt = self._build_default_prompt()
 
         # Initialize message history
         self.messages: list[Message] = [
-            Message(role="system", content=system_prompt)
+            Message(role="system", content=self.system_prompt)
         ]
 
         # Execution logs for API response
         self.execution_logs: list[dict[str, Any]] = []
+
+    def _collect_tool_instructions(self) -> list[str]:
+        """收集需要添加到系统提示的工具说明."""
+        instructions = []
+        for tool in self.tools.values():
+            if tool.add_instructions_to_prompt and tool.instructions:
+                instructions.append(tool.instructions)
+        return instructions
+
+    def _build_structured_prompt(self, config: SystemPromptConfig) -> str:
+        """使用 SystemPromptBuilder 构建结构化系统提示."""
+        # 收集工具说明
+        tool_instructions = self._collect_tool_instructions()
+
+        # 使用构建器
+        builder = SystemPromptBuilder()
+        return builder.build(
+            config=config,
+            workspace_dir=self.workspace_dir,
+            skill_loader=self.skill_loader,
+            tool_instructions=tool_instructions,
+        )
+
+    def _build_default_prompt(self) -> str:
+        """构建默认系统提示."""
+        config = SystemPromptConfig(
+            description="You are a helpful AI assistant.",
+            instructions=[
+                "Always think step by step",
+                "Use available tools when appropriate",
+                "Provide clear and accurate responses",
+            ],
+        )
+        return self._build_structured_prompt(config)
 
     def add_user_message(self, content: str):
         """Add a user message to history."""

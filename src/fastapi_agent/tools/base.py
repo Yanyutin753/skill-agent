@@ -29,6 +29,27 @@ class Tool:
         """Tool parameters schema (JSON Schema format)."""
         raise NotImplementedError
 
+    @property
+    def instructions(self) -> str | None:
+        """Tool usage instructions to be added to system prompt.
+
+        返回 None 表示不添加说明到系统提示。
+        返回字符串表示要添加的使用说明。
+
+        Example:
+            return '''
+            When using this tool:
+            - Always check the result carefully
+            - Use absolute paths when possible
+            '''
+        """
+        return None
+
+    @property
+    def add_instructions_to_prompt(self) -> bool:
+        """是否将工具说明添加到系统提示."""
+        return False
+
     async def execute(self, *args, **kwargs) -> ToolResult:
         """Execute the tool with arbitrary arguments."""
         raise NotImplementedError
