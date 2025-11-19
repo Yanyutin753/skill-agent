@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 from fastapi_agent.core.team import Team, DelegateTaskTool, DelegateToAllTool
 from fastapi_agent.core.llm_client import LLMClient
 from fastapi_agent.schemas.team import TeamConfig, TeamMemberConfig
-from fastapi_agent.tools.base_tools import ReadTool, WriteTool
+from fastapi_agent.tools.file_tools import ReadTool, WriteTool
 
 
 @pytest.fixture
