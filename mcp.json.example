@@ -1,27 +1,23 @@
 {
   "$schema": "https://modelcontextprotocol.io/schema/mcp.json",
   "mcpServers": {
-    "example-weather": {
-      "command": "python",
-      "args": ["-m", "weather_server"],
-      "env": {
-        "API_KEY": "your-api-key-here"
-      },
-      "disabled": true
-    },
-    "example-database": {
-      "command": "uv",
-      "args": ["run", "database_server.py"],
-      "env": {
-        "DB_HOST": "localhost",
-        "DB_PORT": "5432"
-      },
-      "disabled": true
-    },
-    "example-files": {
+   "exa": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/allowed/directory"],
-      "disabled": true
+      "args": [
+        "-y",
+        "exa-mcp-server",
+        "tools=web_search_exa"
+      ],
+      "env": {
+        "EXA_API_KEY": "YOUR-API_KEY"
+      }
+    },
+    "desktop-commander": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@wonderwhy-er/desktop-commander@latest"
+      ]
     }
   }
 }
