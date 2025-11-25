@@ -8,7 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
-from fastapi_agent.api.deps import cleanup_mcp_tools, initialize_mcp_tools
+from fastapi_agent.api.deps import (
+    cleanup_mcp_tools,
+    initialize_mcp_tools,
+    initialize_session_manager,
+)
 from fastapi_agent.api.v1.router import api_router, health_router
 from fastapi_agent.core.config import settings
 from fastapi_agent.rag.rag_service import rag_service
@@ -31,10 +35,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     print(f"Skills Enabled: {settings.ENABLE_SKILLS}")
     print(f"MCP Enabled: {settings.ENABLE_MCP}")
     print(f"RAG Enabled: {settings.ENABLE_RAG}")
+    print(f"Session Enabled: {settings.ENABLE_SESSION}")
     print("=" * 50)
 
     # Initialize MCP tools
     await initialize_mcp_tools()
+
+    # Initialize session manager
+    await initialize_session_manager()
 
     # Initialize RAG service
     if settings.ENABLE_RAG:

@@ -1,12 +1,17 @@
 """Dependency injection for FastAPI endpoints."""
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 from fastapi import Depends
 
 from fastapi_agent.core import Agent, LLMClient, settings
 from fastapi_agent.core.config import Settings
+from fastapi_agent.core.session import AgentSessionManager, TeamSessionManager
+from fastapi_agent.core.session_manager import (
+    UnifiedAgentSessionManager,
+    UnifiedTeamSessionManager,
+)
 from fastapi_agent.skills import create_skill_tools
 from fastapi_agent.tools import BashTool, EditTool, ReadTool, Tool, WriteTool
 from fastapi_agent.tools.mcp_loader import cleanup_mcp_connections, load_mcp_tools_async
@@ -15,6 +20,11 @@ from fastapi_agent.tools.rag_tool import RAGTool
 
 # Global MCP tools storage (loaded at startup)
 _mcp_tools: list[Tool] = []
+
+# Global session managers (loaded at startup)
+# 支持多种存储后端 (file, redis, postgres)
+_agent_session_manager: Optional[UnifiedAgentSessionManager] = None
+_team_session_manager: Optional[UnifiedTeamSessionManager] = None
 
 
 def get_settings() -> Settings:
@@ -113,6 +123,145 @@ async def cleanup_mcp_tools() -> None:
     print("🧹 Cleaning up MCP connections...")
     await cleanup_mcp_connections()
     _mcp_tools = []
+
+
+async def initialize_session_manager() -> None:
+    """Initialize session managers at application startup.
+
+    This function is called during FastAPI lifespan startup to load
+    both agent and team session managers with configured storage backend.
+
+    Supports multiple backends:
+    - file: JSON file storage (default)
+    - redis: Redis storage (high performance)
+    - postgres: PostgreSQL storage (persistent, queryable)
+    """
+    global _agent_session_manager, _team_session_manager
+
+    if not settings.ENABLE_SESSION:
+        print("ℹ️  Session management disabled")
+        return
+
+    backend = settings.SESSION_BACKEND.lower()
+    ttl_seconds = settings.SESSION_MAX_AGE_DAYS * 86400
+
+    try:
+        if backend == "file":
+            # File storage
+            base_path = Path(settings.SESSION_STORAGE_PATH).expanduser()
+            base_dir = base_path.parent
+            base_dir.mkdir(parents=True, exist_ok=True)
+
+            _agent_session_manager = UnifiedAgentSessionManager(
+                backend="file",
+                storage_path=str(base_dir / "agent_sessions.json"),
+                ttl_seconds=ttl_seconds,
+            )
+            _team_session_manager = UnifiedTeamSessionManager(
+                backend="file",
+                storage_path=str(base_dir / "team_sessions.json"),
+                ttl_seconds=ttl_seconds,
+            )
+            print(f"✅ Session managers initialized (file): {base_dir}")
+
+        elif backend == "redis":
+            # Redis storage
+            _agent_session_manager = UnifiedAgentSessionManager(
+                backend="redis",
+                redis_host=settings.SESSION_REDIS_HOST,
+                redis_port=settings.SESSION_REDIS_PORT,
+                redis_db=settings.SESSION_REDIS_DB,
+                redis_password=settings.SESSION_REDIS_PASSWORD or None,
+                ttl_seconds=ttl_seconds,
+            )
+            _team_session_manager = UnifiedTeamSessionManager(
+                backend="redis",
+                redis_host=settings.SESSION_REDIS_HOST,
+                redis_port=settings.SESSION_REDIS_PORT,
+                redis_db=settings.SESSION_REDIS_DB,
+                redis_password=settings.SESSION_REDIS_PASSWORD or None,
+                ttl_seconds=ttl_seconds,
+            )
+            print(f"✅ Session managers initialized (redis): {settings.SESSION_REDIS_HOST}:{settings.SESSION_REDIS_PORT}")
+
+        elif backend in ("postgres", "postgresql"):
+            # PostgreSQL storage
+            _agent_session_manager = UnifiedAgentSessionManager(
+                backend="postgres",
+                postgres_dsn=settings.postgres_dsn,
+                postgres_table=settings.SESSION_POSTGRES_TABLE,
+                ttl_seconds=ttl_seconds,
+            )
+            _team_session_manager = UnifiedTeamSessionManager(
+                backend="postgres",
+                postgres_dsn=settings.postgres_dsn,
+                postgres_table=settings.SESSION_POSTGRES_TABLE,
+                ttl_seconds=ttl_seconds,
+            )
+            print(f"✅ Session managers initialized (postgres): {settings.POSTGRES_HOST}")
+
+        else:
+            raise ValueError(f"Unknown session backend: {backend}")
+
+        # Auto-cleanup old sessions on startup
+        agent_sessions = await _agent_session_manager.get_all_sessions()
+        team_sessions = await _team_session_manager.get_all_sessions()
+        agent_cleaned = await _agent_session_manager.cleanup_old_sessions(
+            max_age_days=settings.SESSION_MAX_AGE_DAYS
+        )
+        team_cleaned = await _team_session_manager.cleanup_old_sessions(
+            max_age_days=settings.SESSION_MAX_AGE_DAYS
+        )
+
+        print(f"   Agent sessions: {len(agent_sessions)} (cleaned {agent_cleaned} old)")
+        print(f"   Team sessions: {len(team_sessions)} (cleaned {team_cleaned} old)")
+
+    except ImportError as e:
+        error_msg = f"❌ Session backend '{backend}' requires additional dependencies: {e}"
+        print(error_msg)
+        print("   Falling back to file storage...")
+        # Fallback to file storage
+        base_path = Path(settings.SESSION_STORAGE_PATH).expanduser()
+        base_dir = base_path.parent
+        base_dir.mkdir(parents=True, exist_ok=True)
+
+        _agent_session_manager = UnifiedAgentSessionManager(
+            backend="file",
+            storage_path=str(base_dir / "agent_sessions.json"),
+        )
+        _team_session_manager = UnifiedTeamSessionManager(
+            backend="file",
+            storage_path=str(base_dir / "team_sessions.json"),
+        )
+        print(f"⚠️  Falling back to file storage: {base_dir}")
+
+    except Exception as e:
+        import traceback
+        error_msg = f"❌ Error during session manager initialization: {e}"
+        print(error_msg)
+        print(traceback.format_exc())
+        # Create fallback file-based session managers
+        _agent_session_manager = UnifiedAgentSessionManager(backend="file")
+        _team_session_manager = UnifiedTeamSessionManager(backend="file")
+        print("⚠️  Falling back to default file session storage")
+
+
+def get_agent_session_manager() -> Optional[UnifiedAgentSessionManager]:
+    """Get global agent session manager instance.
+
+    Returns:
+        UnifiedAgentSessionManager instance or None if disabled
+    """
+    return _agent_session_manager
+
+
+def get_session_manager() -> Optional[UnifiedTeamSessionManager]:
+    """Get global team session manager instance.
+
+    Returns:
+        UnifiedTeamSessionManager instance or None if disabled
+    """
+    return _team_session_manager
 
 
 def get_tools(workspace_dir: str | None = None) -> list[Tool]:

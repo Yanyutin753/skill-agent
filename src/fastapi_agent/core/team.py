@@ -6,7 +6,8 @@ from uuid import uuid4
 
 from fastapi_agent.core.agent import Agent
 from fastapi_agent.core.llm_client import LLMClient
-from fastapi_agent.core.session import RunRecord, TeamSession, TeamSessionManager
+from fastapi_agent.core.session import RunRecord, TeamSession
+from fastapi_agent.core.session_manager import UnifiedTeamSessionManager
 from fastapi_agent.schemas.team import TeamConfig, TeamMemberConfig, MemberRunResult, TeamRunResponse
 from fastapi_agent.tools.base import Tool
 
@@ -125,14 +126,14 @@ class Team:
         llm_client: LLMClient,
         available_tools: Optional[List[Tool]] = None,
         workspace_dir: str = "./workspace",
-        session_manager: Optional[TeamSessionManager] = None
+        session_manager: Optional[UnifiedTeamSessionManager] = None
     ):
         self.config = config
         self.llm_client = llm_client
         self.available_tools = available_tools or []
         self.workspace_dir = workspace_dir
         self.team_id = str(uuid4())
-        self.session_manager = session_manager or TeamSessionManager()
+        self.session_manager = session_manager or UnifiedTeamSessionManager()
 
         # Track member runs (for current execution)
         self.member_runs: List[MemberRunResult] = []
@@ -296,7 +297,7 @@ Focus on your area of expertise and provide clear, actionable responses.
                     timestamp=time.time(),
                     metadata={"role": member_config.role, "logs": logs}
                 )
-                self.session_manager.add_run(session_id, member_run_record)
+                await self.session_manager.add_run(session_id, member_run_record)
 
             return result
 
@@ -326,7 +327,7 @@ Focus on your area of expertise and provide clear, actionable responses.
                     timestamp=time.time(),
                     metadata={"role": member_config.role, "error": str(e)}
                 )
-                self.session_manager.add_run(session_id, member_run_record)
+                await self.session_manager.add_run(session_id, member_run_record)
 
             return result
 
@@ -358,7 +359,7 @@ Focus on your area of expertise and provide clear, actionable responses.
             # Get session and history if session_id provided
             history_context = ""
             if session_id:
-                session = self.session_manager.get_session(
+                session = await self.session_manager.get_session(
                     session_id=session_id,
                     team_name=self.config.name,
                     user_id=user_id
@@ -408,7 +409,7 @@ Focus on your area of expertise and provide clear, actionable responses.
                         "member_count": len(self.member_runs)
                     }
                 )
-                self.session_manager.add_run(session_id, leader_run_record)
+                await self.session_manager.add_run(session_id, leader_run_record)
 
             return TeamRunResponse(
                 success=success,
@@ -440,7 +441,7 @@ Focus on your area of expertise and provide clear, actionable responses.
                     timestamp=time.time(),
                     metadata={"error": str(e)}
                 )
-                self.session_manager.add_run(session_id, error_run_record)
+                await self.session_manager.add_run(session_id, error_run_record)
 
             return TeamRunResponse(
                 success=False,

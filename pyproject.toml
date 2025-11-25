@@ -34,6 +34,9 @@ dev = [
     "mypy>=1.8.0",
     "httpx>=0.26.0",
 ]
+redis = [
+    "redis>=5.0.0",  # Redis async client for session storage
+]
 
 [build-system]
 requires = ["hatchling"]

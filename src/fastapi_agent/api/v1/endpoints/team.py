@@ -4,7 +4,7 @@ Team API endpoints for multi-agent coordination.
 Uses the Team system where a Leader agent intelligently delegates tasks to members.
 """
 
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 from fastapi import APIRouter, HTTPException, Depends
 
@@ -14,7 +14,8 @@ from fastapi_agent.schemas.team import (
     TeamMemberConfig,
     TeamRunResponse as TeamRunResponseSchema,
 )
-from fastapi_agent.api.deps import get_llm_client, get_tools
+from fastapi_agent.api.deps import get_llm_client, get_tools, get_session_manager
+from fastapi_agent.core.session_manager import UnifiedTeamSessionManager
 from fastapi_agent.utils.logger import logger
 
 router = APIRouter(prefix="/team", tags=["team"])
@@ -130,7 +131,8 @@ def _build_team_config(
 async def run_team(
     request: TeamRunRequest,
     llm_client=Depends(get_llm_client),
-    tools=Depends(get_tools)
+    tools=Depends(get_tools),
+    session_manager: Optional[UnifiedTeamSessionManager] = Depends(get_session_manager)
 ) -> TeamRunResponse:
     """
     Execute a multi-agent team task.
@@ -155,12 +157,17 @@ async def run_team(
     - `reviewer`: Quality review and feedback
     - `analyst`: Data analysis and insights
 
+    **Session support:**
+    - Provide `session_id` to enable multi-turn conversation with history context
+    - Sessions are persisted and can be resumed across requests
+
     **Example:**
     ```json
     {
         "message": "Research Python async programming and write a technical article",
         "members": ["researcher", "writer", "reviewer"],
-        "delegate_to_all": false
+        "delegate_to_all": false,
+        "session_id": "user-123"
     }
     ```
     """
@@ -171,16 +178,17 @@ async def run_team(
         # Build team configuration
         team_config = _build_team_config(request, tools)
 
-        # Create team
+        # Create team with global session manager
         team = Team(
             config=team_config,
             llm_client=llm_client,
             available_tools=tools,
-            workspace_dir=request.workspace_dir or "./workspace"
+            workspace_dir=request.workspace_dir or "./workspace",
+            session_manager=session_manager  # Use injected global session manager
         )
 
         # Execute task
-        logger.info(f"Running team '{team_config.name}' with members={request.members}")
+        logger.info(f"Running team '{team_config.name}' with members={request.members}, session_id={request.session_id}")
         result: TeamRunResponseSchema = await team.run(
             message=request.message,
             max_steps=request.max_steps,

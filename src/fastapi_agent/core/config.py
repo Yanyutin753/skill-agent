@@ -83,6 +83,48 @@ class Settings(BaseSettings):
     CHUNK_OVERLAP: int = Field(default=50, description="Overlap between chunks")
     RAG_TOP_K: int = Field(default=5, description="Number of results to return in RAG search")
 
+    # Session management settings
+    ENABLE_SESSION: bool = Field(default=True, description="Enable session management")
+    SESSION_BACKEND: str = Field(
+        default="file",
+        description="Session storage backend: 'file', 'redis', or 'postgres'"
+    )
+    SESSION_STORAGE_PATH: str = Field(
+        default="~/.fastapi-agent/sessions.json",
+        description="Path to session storage file (for file backend)"
+    )
+    SESSION_MAX_AGE_DAYS: int = Field(
+        default=7,
+        ge=1,
+        le=365,
+        description="Maximum age of sessions in days before cleanup"
+    )
+    SESSION_MAX_RUNS_PER_SESSION: int = Field(
+        default=100,
+        ge=10,
+        le=1000,
+        description="Maximum number of runs to keep per session"
+    )
+    SESSION_HISTORY_RUNS: int = Field(
+        default=3,
+        ge=1,
+        le=20,
+        description="Number of recent runs to include in history context"
+    )
+
+    # Redis session settings (when SESSION_BACKEND=redis)
+    SESSION_REDIS_HOST: str = Field(default="localhost", description="Redis host")
+    SESSION_REDIS_PORT: int = Field(default=6379, description="Redis port")
+    SESSION_REDIS_DB: int = Field(default=0, description="Redis database number")
+    SESSION_REDIS_PASSWORD: str = Field(default="", description="Redis password")
+
+    # PostgreSQL session settings (when SESSION_BACKEND=postgres)
+    # Uses POSTGRES_* settings from RAG configuration
+    SESSION_POSTGRES_TABLE: str = Field(
+        default="agent_sessions",
+        description="PostgreSQL table name for sessions"
+    )
+
     @property
     def postgres_dsn(self) -> str:
         """Build PostgreSQL connection string."""

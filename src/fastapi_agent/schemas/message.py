@@ -40,6 +40,16 @@ class AgentRequest(BaseModel):
     message: str = Field(..., description="User message/task")
     workspace_dir: Optional[str] = Field(None, description="Workspace directory path")
     max_steps: Optional[int] = Field(50, description="Maximum execution steps")
+    session_id: Optional[str] = Field(
+        None,
+        description="Session ID for multi-turn conversation. If provided, history context will be loaded."
+    )
+    num_history_runs: Optional[int] = Field(
+        3,
+        ge=1,
+        le=20,
+        description="Number of recent runs to include in history context"
+    )
 
 
 class AgentResponse(BaseModel):
@@ -48,3 +58,5 @@ class AgentResponse(BaseModel):
     message: str
     steps: int
     logs: List[dict[str, Any]] = []
+    session_id: Optional[str] = Field(None, description="Session ID if session was used")
+    run_id: Optional[str] = Field(None, description="Unique ID for this run")

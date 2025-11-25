@@ -18,6 +18,7 @@
 - ✅ **Skills 系统**: 内置专业 Skills，提供领域专家级指导
 - ✅ **流式输出**: 支持 Server-Sent Events (SSE) 实时流式响应
 - ✅ **会话记忆**: 使用 NoteTool 自动管理长期记忆和会话上下文
+- ✅ **多后端 Session 存储**: 支持 File/Redis/PostgreSQL 三种存储后端
 - ✅ **Web 前端**: ChatGPT 风格的 React 前端界面
 
 ### 📊 性能与监控
@@ -44,7 +45,10 @@ skill-agent/
 │       │   ├── llm_client.py   # LLM 客户端（含流式）
 │       │   ├── config.py       # 配置管理
 │       │   ├── token_manager.py    # Token 管理与消息总结
-│       │   └── agent_logger.py     # 结构化日志系统
+│       │   ├── agent_logger.py     # 结构化日志系统
+│       │   ├── session.py          # Session 数据模型
+│       │   ├── session_storage.py  # 存储后端抽象层
+│       │   └── session_manager.py  # 统一 Session 管理器
 │       ├── tools/              # 工具实现
 │       │   ├── base.py         # 工具基类
 │       │   ├── file_tools.py   # 文件操作
@@ -128,6 +132,10 @@ AGENT_WORKSPACE_DIR=./workspace
 ENABLE_MCP=true              # 启用 MCP 集成
 ENABLE_SKILLS=true           # 启用 Skills 系统
 MCP_CONFIG_PATH=mcp.json     # MCP 配置文件路径
+
+# Session 管理（多后端支持）
+ENABLE_SESSION=true          # 启用 Session 管理
+SESSION_BACKEND=file         # 存储后端: file, redis, postgres
 ```
 
 ### 4. 配置 MCP（可选）
@@ -444,6 +452,80 @@ Agent(
 
 MCP 工具会自动加载并在 Agent 中可用。
 
+### Session 管理（多后端存储）
+
+支持三种存储后端，适应不同的部署场景：
+
+| 后端 | 适用场景 | 特点 | 依赖 |
+|------|----------|------|------|
+| **File** | 开发、单机部署 | 简单、无需额外服务 | 无 |
+| **Redis** | 生产、高并发、分布式 | 高性能、自动过期 | `redis>=5.0.0` |
+| **PostgreSQL** | 生产、需要持久化和查询 | 可靠、支持复杂查询 | `asyncpg>=0.29.0` |
+
+#### 配置示例
+
+**File 存储（默认）**
+```bash
+SESSION_BACKEND=file
+SESSION_STORAGE_PATH=~/.fastapi-agent/sessions.json
+```
+
+**Redis 存储**
+```bash
+# 安装依赖
+uv sync --extra redis
+
+# 配置
+SESSION_BACKEND=redis
+SESSION_REDIS_HOST=localhost
+SESSION_REDIS_PORT=6379
+SESSION_REDIS_DB=0
+SESSION_REDIS_PASSWORD=your_password  # 可选
+```
+
+**PostgreSQL 存储**
+```bash
+# asyncpg 已包含在核心依赖中
+SESSION_BACKEND=postgres
+SESSION_POSTGRES_TABLE=agent_sessions
+
+# 复用 RAG 的 PostgreSQL 配置
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=your_password
+POSTGRES_DB=knowledge_base
+```
+
+#### Session API 使用
+
+```python
+# 请求时带上 session_id 即可启用多轮对话
+import httpx
+
+# 第一轮对话
+response = httpx.post("http://localhost:8000/api/v1/agent/run", json={
+    "message": "我叫张三，今年25岁",
+    "session_id": "user-123"
+})
+
+# 第二轮对话（Agent 会记住之前的上下文）
+response = httpx.post("http://localhost:8000/api/v1/agent/run", json={
+    "message": "我叫什么名字？",
+    "session_id": "user-123"
+})
+# Agent 会回答：你叫张三
+```
+
+#### 其他配置选项
+
+```bash
+# Session 通用配置
+SESSION_MAX_AGE_DAYS=7           # Session 过期天数（1-365）
+SESSION_MAX_RUNS_PER_SESSION=100 # 每个 Session 最大运行记录数
+SESSION_HISTORY_RUNS=3           # 上下文中包含的历史轮数
+```
+
 ## 📊 与 Mini-Agent 的对比
 
 | 特性 | Mini-Agent | FastAPI Agent |
@@ -461,6 +543,7 @@ MCP 工具会自动加载并在 Agent 中可用。
 | RESTful API | ❌ | ✅ |
 | 流式输出 | ❌ | ✅ (SSE) |
 | 会话记忆 | ❌ | ✅ (NoteTool) |
+| 多后端 Session | ❌ | ✅ (File/Redis/PostgreSQL) |
 | Web 前端 | ❌ | ✅ (React + TypeScript) |
 
 ## 🔧 开发指南

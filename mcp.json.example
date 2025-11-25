@@ -18,6 +18,10 @@
         "-y",
         "@wonderwhy-er/desktop-commander@latest"
       ]
+    },
+    "amap-amap-sse": {
+      "type": "sse",
+      "url": "https://mcp.amap.com/sse?key=xxxxxx"
     }
   }
 }
