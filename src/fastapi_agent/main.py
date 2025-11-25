@@ -11,6 +11,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi_agent.api.deps import cleanup_mcp_tools, initialize_mcp_tools
 from fastapi_agent.api.v1.router import api_router, health_router
 from fastapi_agent.core.config import settings
+from fastapi_agent.rag.rag_service import rag_service
 
 
 @asynccontextmanager
@@ -29,10 +30,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     print(f"Workspace: {settings.AGENT_WORKSPACE_DIR}")
     print(f"Skills Enabled: {settings.ENABLE_SKILLS}")
     print(f"MCP Enabled: {settings.ENABLE_MCP}")
+    print(f"RAG Enabled: {settings.ENABLE_RAG}")
     print("=" * 50)
 
     # Initialize MCP tools
     await initialize_mcp_tools()
+
+    # Initialize RAG service
+    if settings.ENABLE_RAG:
+        try:
+            await rag_service.initialize()
+            print("✅ RAG Knowledge Base initialized")
+        except Exception as e:
+            print(f"⚠️ RAG initialization failed: {e}")
+            print("   Knowledge base features will be unavailable")
 
     print("=" * 50)
     print("✅ FastAPI Agent Ready!")
@@ -47,6 +58,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Cleanup MCP connections
     await cleanup_mcp_tools()
+
+    # Cleanup RAG service
+    if settings.ENABLE_RAG:
+        await rag_service.shutdown()
+        print("✅ RAG service shutdown")
 
     print("✅ Shutdown complete")
 

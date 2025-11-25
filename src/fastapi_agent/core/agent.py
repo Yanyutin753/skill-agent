@@ -33,6 +33,7 @@ class Agent:
         log_dir: str | None = None,
         name: str | None = None,
         skill_loader: Optional[SkillLoader] = None,
+        tool_output_limit: int = 10000,  # Maximum characters for tool output
     ) -> None:
         """Initialize Agent.
 
@@ -49,6 +50,7 @@ class Agent:
             log_dir: 日志目录
             name: Agent 名称
             skill_loader: Skill 加载器(用于注入 skills 元数据到系统提示)
+            tool_output_limit: 工具输出最大字符数(防止Token爆炸)
         """
         self.llm = llm_client
         self.name = name  # Agent name for team coordination
@@ -56,6 +58,7 @@ class Agent:
         self.max_steps = max_steps
         self.workspace_dir = Path(workspace_dir)
         self.skill_loader = skill_loader
+        self.tool_output_limit = tool_output_limit
 
         # Initialize Token Manager
         self.token_manager = TokenManager(
@@ -137,6 +140,21 @@ class Agent:
     def add_user_message(self, content: str):
         """Add a user message to history."""
         self.messages.append(Message(role="user", content=content))
+
+    def _truncate_tool_output(self, content: str) -> str:
+        """Truncate tool output if it exceeds the limit.
+
+        Args:
+            content: Tool output content
+
+        Returns:
+            Truncated content with indicator if exceeded limit
+        """
+        if len(content) <= self.tool_output_limit:
+            return content
+
+        truncated = content[:self.tool_output_limit]
+        return f"{truncated}\n\n[... output truncated, {len(content) - self.tool_output_limit} more characters ...]"
 
     async def run(self) -> tuple[str, list[dict[str, Any]]]:
         """Execute agent loop until task is complete or max steps reached.
@@ -300,10 +318,14 @@ class Agent:
                         execution_time=execution_time,
                     )
 
-                # Add tool result message
+                # Add tool result message (truncate if too long to prevent token explosion)
+                tool_content = result.content if result.success else f"Error: {result.error}"
+                if result.success:
+                    tool_content = self._truncate_tool_output(tool_content)
+
                 tool_msg = Message(
                     role="tool",
-                    content=result.content if result.success else f"Error: {result.error}",
+                    content=tool_content,
                     tool_call_id=tool_call_id,
                     name=function_name,
                 )
@@ -507,10 +529,14 @@ class Agent:
                         execution_time=execution_time,
                     )
 
-                # Add tool result message
+                # Add tool result message (truncate if too long to prevent token explosion)
+                tool_content = result.content if result.success else f"Error: {result.error}"
+                if result.success:
+                    tool_content = self._truncate_tool_output(tool_content)
+
                 tool_msg = Message(
                     role="tool",
-                    content=result.content if result.success else f"Error: {result.error}",
+                    content=tool_content,
                     tool_call_id=tool_call_id,
                     name=function_name,
                 )

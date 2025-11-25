@@ -1,6 +1,7 @@
 // Simple MVP Chat Page
 import { useEffect, useRef, useState } from 'react';
-import { Send, Loader2, Trash2, Plus, Bot, User } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Send, Loader2, Trash2, Plus, Bot, User, Database } from 'lucide-react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useChatStore } from '@/stores/chatStore';
 import { useAgentStream } from '@/hooks/useAgentStream';
@@ -93,8 +94,20 @@ export default function Chat() {
           ))}
         </div>
 
-        {/* User Profile / Settings placeholder */}
-        <div className="p-3 border-t border-[var(--border-sidebar)]">
+        {/* Bottom Actions */}
+        <div className="p-3 border-t border-[var(--border-sidebar)] space-y-1">
+          {/* Knowledge Base Link */}
+          <Link
+            to="/knowledge"
+            className="flex items-center gap-3 px-3 py-3 rounded-md hover:bg-[var(--bg-sidebar-hover)] cursor-pointer transition-colors text-sm"
+          >
+            <div className="w-8 h-8 rounded bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+              <Database className="w-4 h-4 text-white" />
+            </div>
+            <div className="font-medium">知识库</div>
+          </Link>
+
+          {/* User Profile */}
           <div className="flex items-center gap-3 px-3 py-3 rounded-md hover:bg-[var(--bg-sidebar-hover)] cursor-pointer transition-colors">
             <div className="w-8 h-8 rounded bg-green-700 flex items-center justify-center text-white font-medium text-xs">
               U

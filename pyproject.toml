@@ -19,6 +19,10 @@ dependencies = [
     "python-multipart>=0.0.6",
     "tiktoken>=0.5.0",
     "mcp>=1.0.0",  # Model Context Protocol SDK
+    "asyncpg>=0.29.0",  # PostgreSQL async driver
+    "pgvector>=0.3.0",  # pgvector Python bindings
+    "pypdf>=4.0.0",  # PDF parsing
+    "openai>=1.0.0",  # For DashScope API (OpenAI compatible)
 ]
 
 [project.optional-dependencies]
@@ -79,3 +83,8 @@ plugins = ["pydantic.mypy"]
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
+
+[dependency-groups]
+dev = [
+    "pgvector>=0.4.1",
+]

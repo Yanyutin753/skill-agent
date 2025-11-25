@@ -11,6 +11,7 @@ from fastapi_agent.skills import create_skill_tools
 from fastapi_agent.tools import BashTool, EditTool, ReadTool, Tool, WriteTool
 from fastapi_agent.tools.mcp_loader import cleanup_mcp_connections, load_mcp_tools_async
 from fastapi_agent.tools.note_tool import RecallNoteTool, SessionNoteTool
+from fastapi_agent.tools.rag_tool import RAGTool
 
 # Global MCP tools storage (loaded at startup)
 _mcp_tools: list[Tool] = []
@@ -147,6 +148,10 @@ def get_tools(workspace_dir: str | None = None) -> list[Tool]:
     # Add MCP tools if enabled (loaded at startup)
     if settings.ENABLE_MCP and _mcp_tools:
         tools.extend(_mcp_tools)
+
+    # Add RAG tool if enabled
+    if settings.ENABLE_RAG:
+        tools.append(RAGTool())
 
     return tools
 

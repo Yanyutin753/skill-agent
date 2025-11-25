@@ -1,6 +1,7 @@
 """Agent run logger with structured logging."""
 
 import json
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -24,11 +25,12 @@ class AgentLogger:
     - Token usage and performance metrics
     """
 
-    def __init__(self, log_dir: str | None = None):
+    def __init__(self, log_dir: str | None = None, retention_days: int = 30):
         """Initialize logger.
 
         Args:
             log_dir: Custom log directory (defaults to ~/.fastapi-agent/log/)
+            retention_days: Number of days to retain log files (default 30)
         """
         # Use ~/.fastapi-agent/log/ directory for logs
         if log_dir:
@@ -39,6 +41,37 @@ class AgentLogger:
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.log_file: Path | None = None
         self.log_index = 0
+        self.retention_days = retention_days
+
+        # Clean up old logs on initialization
+        self._cleanup_old_logs()
+
+    def _cleanup_old_logs(self) -> int:
+        """Clean up log files older than retention_days.
+
+        Returns:
+            Number of files deleted
+        """
+        if not self.log_dir.exists():
+            return 0
+
+        deleted_count = 0
+        cutoff_time = time.time() - (self.retention_days * 24 * 60 * 60)
+
+        for log_file in self.log_dir.glob("agent_run_*.log"):
+            try:
+                # Check file modification time
+                if log_file.stat().st_mtime < cutoff_time:
+                    log_file.unlink()
+                    deleted_count += 1
+            except (OSError, PermissionError):
+                # Skip files that can't be deleted
+                pass
+
+        if deleted_count > 0:
+            print(f"🧹 Cleaned up {deleted_count} old log files (>{self.retention_days} days)")
+
+        return deleted_count
 
     def start_new_run(self, run_id: str | None = None) -> Path:
         """Start new run, create new log file.

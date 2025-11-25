@@ -55,12 +55,57 @@ class Settings(BaseSettings):
         description="Path to MCP configuration file"
     )
 
+    # RAG / Knowledge Base settings
+    ENABLE_RAG: bool = Field(default=True, description="Enable RAG knowledge base")
+    POSTGRES_HOST: str = Field(default="localhost", description="PostgreSQL host")
+    POSTGRES_PORT: int = Field(default=5432, description="PostgreSQL port")
+    POSTGRES_USER: str = Field(default="postgres", description="PostgreSQL user")
+    POSTGRES_PASSWORD: str = Field(default="", description="PostgreSQL password")
+    POSTGRES_DB: str = Field(default="knowledge_base", description="PostgreSQL database name")
+
+    # DashScope Embedding settings
+    DASHSCOPE_API_KEY: str = Field(default="", description="DashScope API key for embeddings")
+    DASHSCOPE_API_BASE: str = Field(
+        default="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        description="DashScope API base URL"
+    )
+    EMBEDDING_MODEL: str = Field(
+        default="text-embedding-v4",
+        description="Embedding model name"
+    )
+    EMBEDDING_DIMENSION: int = Field(
+        default=1024,
+        description="Embedding vector dimension"
+    )
+
+    # RAG Chunking settings
+    CHUNK_SIZE: int = Field(default=500, description="Text chunk size in characters")
+    CHUNK_OVERLAP: int = Field(default=50, description="Overlap between chunks")
+    RAG_TOP_K: int = Field(default=5, description="Number of results to return in RAG search")
+
+    @property
+    def postgres_dsn(self) -> str:
+        """Build PostgreSQL connection string."""
+        return (
+            f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        )
+
     # System prompt
     SYSTEM_PROMPT: str = Field(
         default=(
             "You are a helpful AI assistant with access to tools. "
             "Use the available tools to complete tasks efficiently and accurately. "
             "Always provide clear explanations of your actions.\n\n"
+            "## Knowledge Base\n"
+            "You have access to a knowledge base containing user-uploaded documents. "
+            "When answering questions, ALWAYS first use the `search_knowledge` tool to search for relevant information. "
+            "This is especially important for:\n"
+            "- Personal information questions (e.g., zodiac sign, birthday, preferences)\n"
+            "- Domain-specific knowledge that may have been uploaded\n"
+            "- Any question where the answer might be in the knowledge base\n\n"
+            "If the knowledge base returns relevant results, use that information to answer. "
+            "If no relevant results are found, you can then rely on your general knowledge.\n\n"
             "{SKILLS_METADATA}"
         )
     )

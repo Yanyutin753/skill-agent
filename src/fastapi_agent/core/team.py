@@ -50,7 +50,7 @@ class DelegateTaskTool(Tool):
             "required": ["member_name", "task"]
         }
 
-    def execute(self, member_name: str, task: str) -> str:
+    async def execute(self, member_name: str, task: str) -> str:
         """Execute task delegation."""
         # Find the member
         member_config = None
@@ -63,7 +63,7 @@ class DelegateTaskTool(Tool):
             return f"Error: Member '{member_name}' not found in team"
 
         # Run the member agent (with session tracking)
-        result = self.team._run_member(member_config, task, session_id=self.session_id)
+        result = await self.team._run_member(member_config, task, session_id=self.session_id)
 
         # Format response
         if result.success:
@@ -103,11 +103,11 @@ class DelegateToAllTool(Tool):
             "required": ["task"]
         }
 
-    def execute(self, task: str) -> str:
+    async def execute(self, task: str) -> str:
         """Execute task delegation to all members."""
         results = []
         for member_config in self.team.config.members:
-            result = self.team._run_member(member_config, task, session_id=self.session_id)
+            result = await self.team._run_member(member_config, task, session_id=self.session_id)
             if result.success:
                 results.append(f"✓ {member_config.name}: {result.response}")
             else:
@@ -218,7 +218,7 @@ DELEGATION GUIDELINES:
 
         return system_prompt
 
-    def _run_member(
+    async def _run_member(
         self,
         member_config: TeamMemberConfig,
         task: str,
@@ -260,18 +260,25 @@ Focus on your area of expertise and provide clear, actionable responses.
                 enable_logging=False  # Don't create separate logs for members
             )
 
-            # Run the member
-            response = member_agent.run(task)
+            # Add task message and run the member
+            member_agent.add_user_message(task)
+            response_content, logs = await member_agent.run()
+
+            # Agent.run() returns (response_content: str, logs: list)
+            # Determine success based on whether we got a valid response
+            success = bool(response_content and not response_content.startswith("LLM call failed"))
+            steps = len([log for log in logs if log.get("type") == "step"])
 
             result = MemberRunResult(
                 member_name=member_config.name,
                 member_role=member_config.role,
                 task=task,
-                response=response.get("message", ""),
-                success=response.get("success", False),
-                steps=response.get("steps", 0),
-                metadata=response
+                response=response_content,
+                success=success,
+                steps=steps,
+                metadata={"logs": logs}
             )
+            
 
             self.member_runs.append(result)
 
@@ -287,7 +294,7 @@ Focus on your area of expertise and provide clear, actionable responses.
                     success=result.success,
                     steps=result.steps,
                     timestamp=time.time(),
-                    metadata={"role": member_config.role, "response_data": response}
+                    metadata={"role": member_config.role, "logs": logs}
                 )
                 self.session_manager.add_run(session_id, member_run_record)
 
@@ -323,7 +330,7 @@ Focus on your area of expertise and provide clear, actionable responses.
 
             return result
 
-    def run(
+    async def run(
         self,
         message: str,
         max_steps: int = 50,
@@ -371,13 +378,18 @@ Focus on your area of expertise and provide clear, actionable responses.
                 enable_logging=True
             )
 
-            # Run the leader
-            response = leader.run(message)
+            # Add task message and run the leader
+            leader.add_user_message(message)
+            response_content, logs = await leader.run()
 
-            # Calculate total steps
-            total_steps = response.get("steps", 0)
+            # Calculate total steps from logs
+            leader_steps = len([log for log in logs if log.get("type") == "step"])
+            total_steps = leader_steps
             for member_run in self.member_runs:
                 total_steps += member_run.steps
+
+            # Determine success
+            success = bool(response_content and not response_content.startswith("LLM call failed"))
 
             # Save leader run to session if session_id provided
             if session_id:
@@ -387,26 +399,26 @@ Focus on your area of expertise and provide clear, actionable responses.
                     runner_type="team_leader",
                     runner_name=self.config.name,
                     task=message,
-                    response=response.get("message", ""),
-                    success=response.get("success", False),
+                    response=response_content,
+                    success=success,
                     steps=total_steps,
                     timestamp=time.time(),
                     metadata={
-                        "leader_response": response,
+                        "logs": logs,
                         "member_count": len(self.member_runs)
                     }
                 )
                 self.session_manager.add_run(session_id, leader_run_record)
 
             return TeamRunResponse(
-                success=response.get("success", False),
+                success=success,
                 team_name=self.config.name,
-                message=response.get("message", ""),
+                message=response_content,
                 member_runs=self.member_runs,
                 total_steps=total_steps,
                 iterations=len(self.member_runs),
                 metadata={
-                    "leader_response": response,
+                    "logs": logs,
                     "team_config": self.config.model_dump(),
                     "session_id": session_id,
                     "run_id": self._current_run_id
