@@ -33,10 +33,12 @@ export function useAgentStream() {
       const assistantMessageId = uuidv4();
       chatStore.startStreaming(assistantMessageId);
 
-      // Prepare request
+      // Prepare request with session_id for multi-turn conversation
       const request: AgentRequest = {
         message: content,
-        max_steps: max_steps || 50,
+        max_steps: max_steps || 150,
+        session_id: currentSession.id,
+        num_history_runs: 3,
       };
 
       try {
