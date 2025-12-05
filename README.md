@@ -40,6 +40,7 @@ ChatGPT 风格界面，支持 Thinking Process 展示、流式输出、会话管
 - **执行时间追踪**: 精确记录每个工具的执行时间（毫秒级）
 - **Token 使用监控**: 实时追踪 token 使用情况和百分比
 - **独立日志文件**: 每次运行生成时间戳日志，便于调试和审计
+- **TraceLogger 追踪系统**: 多 Agent 工作流追踪，支持委派链路、依赖关系可视化
 
 ## 项目结构
 
@@ -66,7 +67,8 @@ skill-agent/
 │       │   ├── agent_logger.py     # 结构化日志系统
 │       │   ├── session.py          # Session 数据模型
 │       │   ├── session_storage.py  # 存储后端抽象层
-│       │   └── session_manager.py  # 统一 Session 管理器
+│       │   ├── session_manager.py  # 统一 Session 管理器
+│       │   └── trace_logger.py     # 多 Agent 工作流追踪
 │       ├── tools/              # 工具实现
 │       │   ├── base.py         # 工具基类
 │       │   ├── file_tools.py   # 文件操作
@@ -82,6 +84,8 @@ skill-agent/
 │       ├── skills/             # Skills 系统
 │       │   ├── skill_tool.py   # Skill 工具实现
 │       │   └── ...             # 内置 Skills
+│       ├── utils/              # 工具类
+│       │   └── trace_viewer.py # 追踪日志查看器
 │       └── schemas/            # Pydantic 数据模型
 │           ├── message.py      # Agent 请求/响应
 │           └── team.py         # Team 请求/响应
@@ -89,7 +93,9 @@ skill-agent/
 ├── tests/                      # 测试套件
 ├── skills/                     # 外部 Skills 定义
 ├── workspace/                  # Agent 工作目录
-├── mcp.json                    # MCP 服务器配置
+├── mcp.json.example            # MCP 服务器配置示例
+├── docs/                       # 文档
+│   └── TRACING_GUIDE.md        # 追踪系统使用指南
 └── pyproject.toml              # 项目配置（uv）
 ```
 
@@ -151,6 +157,12 @@ DASHSCOPE_API_KEY=your_dashscope_key  # 用于向量嵌入
 ```
 
 ### 4. 配置 MCP（可选）
+
+复制示例配置并编辑：
+
+```bash
+cp mcp.json.example mcp.json
+```
 
 编辑 `mcp.json` 配置 MCP 服务器：
 
@@ -353,7 +365,7 @@ asyncio.run(run_agent())
 
 ### Skills 专家系统
 
-内置 Skills: `mcp-builder`, `document-skills`, `web-tools`, `webapp-testing` 等。
+内置 Skills: `mcp-builder`, `document-skills`, `web-tools`, `webapp-testing`, `web-spider` (Firecrawl) 等。
 
 ## 核心功能详解
 
@@ -563,7 +575,9 @@ WantedBy=multi-user.target
 sudo systemctl enable fastapi-agent && sudo systemctl start fastapi-agent
 ```
 
-## 日志
+## 日志与追踪
+
+### AgentLogger（单 Agent 日志）
 
 Agent 执行日志保存在 `~/.fastapi-agent/log/`：
 
@@ -571,6 +585,28 @@ Agent 执行日志保存在 `~/.fastapi-agent/log/`：
 ls -lht ~/.fastapi-agent/log/ | head -5
 cat ~/.fastapi-agent/log/agent_run_20251113_223233.log
 ```
+
+### TraceLogger（多 Agent 追踪）
+
+工作流追踪日志保存在 `~/.fastapi-agent/traces/`：
+
+```bash
+# 列出追踪
+uv run python -m fastapi_agent.utils.trace_viewer list
+
+# 查看详细追踪
+uv run python -m fastapi_agent.utils.trace_viewer view trace_team_20251205_abc123.jsonl
+
+# 可视化工作流
+uv run python -m fastapi_agent.utils.trace_viewer flow trace_dependency_workflow_20251205_xyz789.jsonl
+```
+
+追踪内容包括：
+- 完整工作流生命周期
+- Agent 启动/结束及嵌套层级
+- Leader 向 Member 的委派记录
+- 任务依赖关系和执行层级
+- Token 使用统计
 
 ## 故障排除
 
@@ -591,6 +627,7 @@ cat ~/.fastapi-agent/log/agent_run_20251113_223233.log
 ## 详细文档
 
 - [流式输出](./docs/STREAMING.md)
+- [追踪系统指南](./docs/TRACING_GUIDE.md)
 - [前端指南](./frontend/README.md)
 - [开发指南](./CLAUDE.md)
 
