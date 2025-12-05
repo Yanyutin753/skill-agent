@@ -13,6 +13,9 @@ from fastapi_agent.schemas.team import (
     TeamConfig,
     TeamMemberConfig,
     TeamRunResponse as TeamRunResponseSchema,
+    TaskWithDependencies,
+    DependencyRunRequest,
+    DependencyRunResponse,
 )
 from fastapi_agent.api.deps import get_llm_client, get_tools, get_session_manager
 from fastapi_agent.core.session_manager import UnifiedTeamSessionManager
@@ -238,3 +241,124 @@ async def list_roles() -> Dict[str, Any]:
 async def team_health() -> Dict[str, str]:
     """Health check for team endpoints"""
     return {"status": "healthy", "service": "team"}
+
+
+@router.post("/run-with-dependencies", response_model=DependencyRunResponse)
+async def run_team_with_dependencies(
+    request: DependencyRunRequest,
+    llm_client=Depends(get_llm_client),
+    tools=Depends(get_tools),
+    session_manager: Optional[UnifiedTeamSessionManager] = Depends(get_session_manager)
+) -> DependencyRunResponse:
+    """
+    Execute team tasks with explicit dependency relationships.
+
+    This endpoint allows you to define a DAG (Directed Acyclic Graph) of tasks
+    where each task can depend on the completion of other tasks.
+
+    **How it works:**
+    1. Tasks are automatically sorted based on their dependencies (topological sort)
+    2. Tasks without dependencies execute first
+    3. Tasks in the same dependency layer execute in parallel
+    4. Each task receives results from its dependency tasks as context
+    5. If any task fails, dependent tasks are skipped
+
+    **Benefits:**
+    - Explicit control over task execution order
+    - Automatic parallelization of independent tasks
+    - Results from dependency tasks are passed as context
+    - Clear visualization of execution flow
+
+    **Request format:**
+    ```json
+    {
+        "tasks": [
+            {
+                "id": "research",
+                "task": "研究 Python 异步编程",
+                "assigned_to": "researcher",
+                "depends_on": []
+            },
+            {
+                "id": "analyze",
+                "task": "分析研究结果",
+                "assigned_to": "analyst",
+                "depends_on": ["research"]
+            },
+            {
+                "id": "write",
+                "task": "撰写技术文章",
+                "assigned_to": "writer",
+                "depends_on": ["analyze"]
+            },
+            {
+                "id": "code",
+                "task": "编写示例代码",
+                "assigned_to": "coder",
+                "depends_on": ["analyze"]
+            }
+        ],
+        "team_config": {
+            "name": "Research Team",
+            "members": [
+                {"name": "Researcher", "role": "researcher", "tools": ["read", "bash"]},
+                {"name": "Analyst", "role": "analyst", "tools": []},
+                {"name": "Writer", "role": "writer", "tools": ["write", "edit"]},
+                {"name": "Coder", "role": "coder", "tools": ["write", "edit", "bash"]}
+            ]
+        },
+        "session_id": "user-123"
+    }
+    ```
+
+    **Execution order:**
+    - Layer 1: research (no dependencies)
+    - Layer 2: analyze (depends on research)
+    - Layer 3: write + code (parallel, both depend on analyze)
+
+    **Use cases:**
+    - Complex multi-step workflows
+    - Research -> Analysis -> Report generation
+    - Data collection -> Processing -> Visualization
+    - Requirements -> Design -> Implementation -> Testing
+    """
+    try:
+        if not request.tasks:
+            raise HTTPException(status_code=400, detail="At least one task is required")
+
+        team_config = request.team_config
+        if not team_config:
+            raise HTTPException(
+                status_code=400,
+                detail="team_config is required for dependency-based execution"
+            )
+
+        team = Team(
+            config=team_config,
+            llm_client=llm_client,
+            available_tools=tools,
+            workspace_dir=request.workspace_dir or "./workspace",
+            session_manager=session_manager
+        )
+
+        logger.info(
+            f"Running team '{team_config.name}' with {len(request.tasks)} tasks in dependency mode, "
+            f"session_id={request.session_id}"
+        )
+
+        result = await team.run_with_dependencies(
+            tasks=request.tasks,
+            session_id=request.session_id,
+            user_id=request.user_id
+        )
+
+        return result
+
+    except ValueError as e:
+        logger.error(f"Dependency validation failed: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Team dependency run failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

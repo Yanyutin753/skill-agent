@@ -15,6 +15,13 @@
     "amap-amap-sse": {
       "type": "sse",
       "url": "https://mcp.amap.com/sse?key=40f2aa8a68ed8aeefffc4f3dda204baf"
+    },
+      "firecrawl": {
+      "command": "npx",
+      "args": ["-y", "firecrawl-mcp"],
+      "env": {
+        "FIRECRAWL_API_KEY": "fc-e78e5fc62c4041a8a082c15d1743cae9"
+      }
     }
   }
 }

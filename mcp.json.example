@@ -22,6 +22,12 @@
     "amap-amap-sse": {
       "type": "sse",
       "url": "https://mcp.amap.com/sse?key=xxxxxx"
-    }
+    },
+      "firecrawl": {
+      "command": "npx",
+      "args": ["-y", "firecrawl-mcp"],
+      "env": {
+        "FIRECRAWL_API_KEY": "xxxxxx"
+      }
   }
 }

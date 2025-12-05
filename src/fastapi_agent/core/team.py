@@ -1,5 +1,6 @@
 """Team orchestration for multi-agent collaboration."""
 
+import asyncio
 import time
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
@@ -8,8 +9,16 @@ from fastapi_agent.core.agent import Agent
 from fastapi_agent.core.llm_client import LLMClient
 from fastapi_agent.core.session import RunRecord, TeamSession
 from fastapi_agent.core.session_manager import UnifiedTeamSessionManager
-from fastapi_agent.schemas.team import TeamConfig, TeamMemberConfig, MemberRunResult, TeamRunResponse
-from fastapi_agent.tools.base import Tool
+from fastapi_agent.core.trace_logger import TraceLogger, get_current_trace, set_current_trace
+from fastapi_agent.schemas.team import (
+    TeamConfig,
+    TeamMemberConfig,
+    MemberRunResult,
+    TeamRunResponse,
+    TaskWithDependencies,
+    DependencyRunResponse,
+)
+from fastapi_agent.tools.base import Tool, ToolResult
 from fastapi_agent.tools.spawn_agent_tool import SpawnAgentTool
 
 
@@ -52,9 +61,8 @@ class DelegateTaskTool(Tool):
             "required": ["member_name", "task"]
         }
 
-    async def execute(self, member_name: str, task: str) -> str:
+    async def execute(self, member_name: str, task: str) -> ToolResult:
         """Execute task delegation."""
-        # Find the member
         member_config = None
         for m in self.team.config.members:
             if m.name == member_name:
@@ -62,16 +70,18 @@ class DelegateTaskTool(Tool):
                 break
 
         if not member_config:
-            return f"Error: Member '{member_name}' not found in team"
+            return ToolResult(success=False, error=f"Member '{member_name}' not found in team")
 
-        # Run the member agent (with session tracking)
+        trace = get_current_trace()
+        if trace:
+            trace.log_delegation("Leader", member_name, task)
+
         result = await self.team._run_member(member_config, task, session_id=self.session_id)
 
-        # Format response
         if result.success:
-            return f"✓ {member_name} completed task:\n{result.response}"
+            return ToolResult(success=True, content=f"{member_name} completed task:\n{result.response}")
         else:
-            return f"✗ {member_name} failed: {result.error}"
+            return ToolResult(success=False, content=result.response, error=result.error)
 
 
 class DelegateToAllTool(Tool):
@@ -105,17 +115,19 @@ class DelegateToAllTool(Tool):
             "required": ["task"]
         }
 
-    async def execute(self, task: str) -> str:
+    async def execute(self, task: str) -> ToolResult:
         """Execute task delegation to all members."""
         results = []
+        all_success = True
         for member_config in self.team.config.members:
             result = await self.team._run_member(member_config, task, session_id=self.session_id)
             if result.success:
-                results.append(f"✓ {member_config.name}: {result.response}")
+                results.append(f"[{member_config.name}]: {result.response}")
             else:
-                results.append(f"✗ {member_config.name}: {result.error}")
+                results.append(f"[{member_config.name}] FAILED: {result.error}")
+                all_success = False
 
-        return "\n\n".join(results)
+        return ToolResult(success=all_success, content="\n\n".join(results))
 
 
 class Team:
@@ -236,20 +248,21 @@ DELEGATION GUIDELINES:
         self,
         member_config: TeamMemberConfig,
         task: str,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
+        depth: int = 1
     ) -> MemberRunResult:
-        """Run a specific team member on a task.
+        """Run a specific team member on a task."""
+        trace = get_current_trace()
+        if trace:
+            trace.log_agent_start(
+                member_config.name,
+                member_config.role,
+                task,
+                parent_agent="Leader",
+                depth=depth
+            )
 
-        Args:
-            member_config: Member configuration
-            task: Task to execute
-            session_id: Optional session ID for recording run
-
-        Returns:
-            Member run result
-        """
         try:
-            # Get tools for this member
             member_tools = []
             if member_config.tools:
                 for tool in self.available_tools:
@@ -293,14 +306,21 @@ Focus on your area of expertise and provide clear, actionable responses.
                 enable_logging=False  # Don't create separate logs for members
             )
 
-            # Add task message and run the member
             member_agent.add_user_message(task)
             response_content, logs = await member_agent.run()
 
-            # Agent.run() returns (response_content: str, logs: list)
-            # Determine success based on whether we got a valid response
-            success = bool(response_content and not response_content.startswith("LLM call failed"))
             steps = len([log for log in logs if log.get("type") == "step"])
+            max_steps_reached = any(log.get("type") == "max_steps_reached" for log in logs)
+            llm_failed = response_content and response_content.startswith("LLM call failed")
+            success = bool(response_content) and not max_steps_reached and not llm_failed
+
+            input_tokens = 0
+            output_tokens = 0
+            for log in logs:
+                if log.get("type") in ("completion", "max_steps_reached"):
+                    input_tokens = log.get("total_input_tokens", 0)
+                    output_tokens = log.get("total_output_tokens", 0)
+                    break
 
             result = MemberRunResult(
                 member_name=member_config.name,
@@ -309,9 +329,11 @@ Focus on your area of expertise and provide clear, actionable responses.
                 response=response_content,
                 success=success,
                 steps=steps,
-                metadata={"logs": logs}
+                metadata={"input_tokens": input_tokens, "output_tokens": output_tokens}
             )
-            
+
+            if trace:
+                trace.log_agent_end(member_config.name, success, response_content, steps, input_tokens, output_tokens)
 
             self.member_runs.append(result)
 
@@ -334,6 +356,9 @@ Focus on your area of expertise and provide clear, actionable responses.
             return result
 
         except Exception as e:
+            if trace:
+                trace.log_agent_end(member_config.name, False, str(e), 0)
+
             result = MemberRunResult(
                 member_name=member_config.name,
                 member_role=member_config.role,
@@ -371,24 +396,21 @@ Focus on your area of expertise and provide clear, actionable responses.
         user_id: Optional[str] = None,
         num_history_runs: int = 3
     ) -> TeamRunResponse:
-        """Run the team on a task.
-
-        Args:
-            message: Task message for the team
-            max_steps: Maximum execution steps
-            session_id: Optional session ID for history tracking
-            user_id: Optional user ID for session
-            num_history_runs: Number of previous runs to include in context
-
-        Returns:
-            TeamRunResponse with execution results
-        """
+        """Run the team on a task."""
         self.member_runs = []
         self.iteration_count = 0
-        self._current_run_id = str(uuid4())  # Generate run ID for this execution
+        self._current_run_id = str(uuid4())
+
+        trace = TraceLogger()
+        trace.start_trace("team", {
+            "team_name": self.config.name,
+            "members": [m.name for m in self.config.members]
+        })
+        set_current_trace(trace)
 
         try:
-            # Get session and history if session_id provided
+            trace.log_agent_start("Leader", "Team Leader", message, depth=0)
+
             history_context = ""
             if session_id:
                 session = await self.session_manager.get_session(
@@ -415,16 +437,23 @@ Focus on your area of expertise and provide clear, actionable responses.
             leader.add_user_message(message)
             response_content, logs = await leader.run()
 
-            # Calculate total steps from logs
             leader_steps = len([log for log in logs if log.get("type") == "step"])
             total_steps = leader_steps
             for member_run in self.member_runs:
                 total_steps += member_run.steps
 
-            # Determine success
-            success = bool(response_content and not response_content.startswith("LLM call failed"))
+            leader_input_tokens = 0
+            leader_output_tokens = 0
+            for log in logs:
+                if log.get("type") in ("completion", "max_steps_reached"):
+                    leader_input_tokens = log.get("total_input_tokens", 0)
+                    leader_output_tokens = log.get("total_output_tokens", 0)
+                    break
 
-            # Save leader run to session if session_id provided
+            max_steps_reached = any(log.get("type") == "max_steps_reached" for log in logs)
+            llm_failed = response_content and response_content.startswith("LLM call failed")
+            success = bool(response_content) and not max_steps_reached and not llm_failed
+
             if session_id:
                 leader_run_record = RunRecord(
                     run_id=self._current_run_id,
@@ -443,6 +472,10 @@ Focus on your area of expertise and provide clear, actionable responses.
                 )
                 await self.session_manager.add_run(session_id, leader_run_record)
 
+            trace.log_agent_end("Leader", success, response_content, leader_steps, leader_input_tokens, leader_output_tokens)
+            trace.end_trace(success=success, result=response_content)
+            set_current_trace(None)
+
             return TeamRunResponse(
                 success=success,
                 team_name=self.config.name,
@@ -451,15 +484,19 @@ Focus on your area of expertise and provide clear, actionable responses.
                 total_steps=total_steps,
                 iterations=len(self.member_runs),
                 metadata={
-                    "logs": logs,
-                    "team_config": self.config.model_dump(),
                     "session_id": session_id,
-                    "run_id": self._current_run_id
+                    "run_id": self._current_run_id,
+                    "trace_id": trace.trace_id,
+                    "input_tokens": leader_input_tokens,
+                    "output_tokens": leader_output_tokens,
                 }
             )
 
         except Exception as e:
-            # Save error to session if session_id provided
+            trace.log_agent_end("Leader", False, str(e), 0)
+            trace.end_trace(success=False, result=str(e))
+            set_current_trace(None)
+
             if session_id:
                 error_run_record = RunRecord(
                     run_id=self._current_run_id,
@@ -482,5 +519,267 @@ Focus on your area of expertise and provide clear, actionable responses.
                 member_runs=self.member_runs,
                 total_steps=0,
                 iterations=len(self.member_runs),
-                metadata={"error": str(e), "run_id": self._current_run_id}
+                metadata={"error": str(e), "run_id": self._current_run_id, "trace_id": trace.trace_id}
             )
+
+    def _resolve_dependencies(
+        self, tasks: List[TaskWithDependencies]
+    ) -> List[List[TaskWithDependencies]]:
+        """Resolve task dependencies using topological sort.
+
+        Args:
+            tasks: List of tasks with dependencies
+
+        Returns:
+            List of task layers (each layer can be executed in parallel)
+
+        Raises:
+            ValueError: If circular dependencies detected
+        """
+        task_map = {task.id: task for task in tasks}
+        in_degree = {task.id: len(task.depends_on) for task in tasks}
+
+        for task in tasks:
+            for dep_id in task.depends_on:
+                if dep_id not in task_map:
+                    raise ValueError(f"Task '{task.id}' depends on non-existent task '{dep_id}'")
+
+        layers = []
+        remaining = set(task.id for task in tasks)
+
+        while remaining:
+            current_layer = [
+                task_map[task_id]
+                for task_id in remaining
+                if in_degree[task_id] == 0
+            ]
+
+            if not current_layer:
+                raise ValueError(f"Circular dependency detected among tasks: {remaining}")
+
+            layers.append(current_layer)
+
+            for task in current_layer:
+                remaining.remove(task.id)
+                for other_id in remaining:
+                    if task.id in task_map[other_id].depends_on:
+                        in_degree[other_id] -= 1
+
+        return layers
+
+    async def _execute_task_with_context(
+        self,
+        task: TaskWithDependencies,
+        completed_results: Dict[str, str],
+        session_id: Optional[str] = None,
+        layer: int = 0,
+    ) -> TaskWithDependencies:
+        """Execute a single task with context from completed dependencies."""
+        task.status = "running"
+        start_time = time.time()
+
+        try:
+            member_config = None
+            for m in self.config.members:
+                if m.role == task.assigned_to:
+                    member_config = m
+                    break
+
+            if not member_config:
+                task.status = "failed"
+                task.result = f"Error: No member with role '{task.assigned_to}' found"
+                return task
+
+            task_description = task.task
+            if task.depends_on:
+                context_parts = ["\n\n依赖任务结果:"]
+                for dep_id in task.depends_on:
+                    if dep_id in completed_results:
+                        context_parts.append(f"\n[{dep_id}]: {completed_results[dep_id]}")
+                task_description += "".join(context_parts)
+
+            member_result = await self._run_member(
+                member_config, task_description, session_id=session_id
+            )
+
+            if member_result.success:
+                task.status = "completed"
+                task.result = member_result.response
+            else:
+                task.status = "failed"
+                task.result = member_result.error or "Unknown error"
+
+            elapsed = time.time() - start_time
+            task.metadata = {
+                "member_name": member_result.member_name,
+                "steps": member_result.steps,
+                "logs": member_result.metadata.get("logs", []),
+                "elapsed": elapsed,
+            }
+
+            trace = get_current_trace()
+            if trace:
+                trace.log_task_end(task.id, task.status, task.result, elapsed)
+
+            return task
+
+        except Exception as e:
+            elapsed = time.time() - start_time
+            task.status = "failed"
+            task.result = f"Execution error: {str(e)}"
+
+            trace = get_current_trace()
+            if trace:
+                trace.log_task_end(task.id, "failed", str(e), elapsed)
+
+            return task
+
+    async def run_with_dependencies(
+        self,
+        tasks: List[TaskWithDependencies],
+        session_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+    ) -> DependencyRunResponse:
+        """Execute tasks with dependency relationships."""
+        self._current_run_id = str(uuid4())
+
+        trace = TraceLogger()
+        trace.start_trace("dependency_workflow", {
+            "team_name": self.config.name,
+            "task_count": len(tasks),
+            "task_ids": [t.id for t in tasks]
+        })
+        set_current_trace(trace)
+
+        try:
+            layers = self._resolve_dependencies(tasks)
+            execution_order = [[task.id for task in layer] for layer in layers]
+
+            completed_results = {}
+            total_steps = 0
+
+            for layer_idx, layer in enumerate(layers):
+                for task in layer:
+                    trace.log_task_start(
+                        task.id, task.task, task.assigned_to, task.depends_on, layer_idx
+                    )
+
+                layer_results = await asyncio.gather(*[
+                    self._execute_task_with_context(task, completed_results, session_id, layer_idx)
+                    for task in layer
+                ])
+
+                for task in layer_results:
+                    completed_results[task.id] = task.result or ""
+                    total_steps += task.metadata.get("steps", 0)
+
+                    if task.status == "failed":
+                        remaining_tasks = []
+                        for remaining_layer in layers[layer_idx + 1:]:
+                            remaining_tasks.extend(remaining_layer)
+
+                        for remaining_task in remaining_tasks:
+                            remaining_task.status = "skipped"
+                            remaining_task.result = f"Skipped due to dependency failure: {task.id}"
+
+                        final_message = f"执行失败：任务 '{task.id}' 执行失败\n\n失败详情:\n{task.result}"
+
+                        trace.end_trace(success=False, result=final_message)
+                        set_current_trace(None)
+
+                        if session_id:
+                            await self._save_dependency_run_to_session(
+                                session_id=session_id,
+                                tasks=tasks,
+                                final_message=final_message,
+                                success=False,
+                                total_steps=total_steps,
+                            )
+
+                        return DependencyRunResponse(
+                            success=False,
+                            team_name=self.config.name,
+                            message=final_message,
+                            tasks=tasks,
+                            execution_order=execution_order,
+                            total_steps=total_steps,
+                            metadata={"run_id": self._current_run_id, "failed_task": task.id, "trace_id": trace.trace_id},
+                        )
+
+            completed_tasks = [t for t in tasks if t.status == "completed"]
+            final_message = f"所有任务执行完成 ({len(completed_tasks)}/{len(tasks)})\n\n执行结果:\n"
+            for task in tasks:
+                final_message += f"\n[{task.id}] {task.status}: {task.result[:200]}..."
+
+            trace.end_trace(success=True, result=final_message)
+            set_current_trace(None)
+
+            if session_id:
+                await self._save_dependency_run_to_session(
+                    session_id=session_id,
+                    tasks=tasks,
+                    final_message=final_message,
+                    success=True,
+                    total_steps=total_steps,
+                )
+
+            return DependencyRunResponse(
+                success=True,
+                team_name=self.config.name,
+                message=final_message,
+                tasks=tasks,
+                execution_order=execution_order,
+                total_steps=total_steps,
+                metadata={"run_id": self._current_run_id, "trace_id": trace.trace_id},
+            )
+
+        except Exception as e:
+            error_message = f"依赖执行失败: {str(e)}"
+
+            trace.end_trace(success=False, result=error_message)
+            set_current_trace(None)
+
+            if session_id:
+                await self._save_dependency_run_to_session(
+                    session_id=session_id,
+                    tasks=tasks,
+                    final_message=error_message,
+                    success=False,
+                    total_steps=0,
+                )
+
+            return DependencyRunResponse(
+                success=False,
+                team_name=self.config.name,
+                message=error_message,
+                tasks=tasks,
+                execution_order=[],
+                total_steps=0,
+                metadata={"error": str(e), "run_id": self._current_run_id, "trace_id": trace.trace_id},
+            )
+
+    async def _save_dependency_run_to_session(
+        self,
+        session_id: str,
+        tasks: List[TaskWithDependencies],
+        final_message: str,
+        success: bool,
+        total_steps: int,
+    ) -> None:
+        """Save dependency run results to session."""
+        run_record = RunRecord(
+            run_id=self._current_run_id,
+            parent_run_id=None,
+            runner_type="team_dependency",
+            runner_name=self.config.name,
+            task=f"Dependency-based execution with {len(tasks)} tasks",
+            response=final_message,
+            success=success,
+            steps=total_steps,
+            timestamp=time.time(),
+            metadata={
+                "tasks": [task.model_dump() for task in tasks],
+                "task_count": len(tasks),
+            },
+        )
+        await self.session_manager.add_run(session_id, run_record)

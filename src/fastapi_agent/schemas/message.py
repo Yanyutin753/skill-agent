@@ -27,12 +27,25 @@ class Message(BaseModel):
     name: Optional[str] = None
 
 
+class TokenUsage(BaseModel):
+    """Token usage statistics."""
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_creation_input_tokens: int = 0
+    cache_read_input_tokens: int = 0
+
+    @property
+    def total_tokens(self) -> int:
+        return self.input_tokens + self.output_tokens
+
+
 class LLMResponse(BaseModel):
     """Response from LLM."""
     content: str
     thinking: Optional[str] = None
     tool_calls: Optional[List[ToolCall]] = None
     finish_reason: str = "stop"
+    usage: Optional[TokenUsage] = None
 
 
 class AgentConfig(BaseModel):

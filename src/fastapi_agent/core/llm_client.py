@@ -7,7 +7,7 @@ from typing import Any, AsyncIterator
 import httpx
 
 from fastapi_agent.core.retry import RetryConfig, async_retry
-from fastapi_agent.schemas.message import FunctionCall, LLMResponse, Message, ToolCall
+from fastapi_agent.schemas.message import FunctionCall, LLMResponse, Message, ToolCall, TokenUsage
 
 logger = logging.getLogger(__name__)
 
@@ -188,11 +188,20 @@ class LLMClient:
                     )
                 )
 
+        usage_data = result.get("usage", {})
+        usage = TokenUsage(
+            input_tokens=usage_data.get("input_tokens", 0),
+            output_tokens=usage_data.get("output_tokens", 0),
+            cache_creation_input_tokens=usage_data.get("cache_creation_input_tokens", 0),
+            cache_read_input_tokens=usage_data.get("cache_read_input_tokens", 0),
+        )
+
         return LLMResponse(
             content=text_content,
             thinking=thinking_content if thinking_content else None,
             tool_calls=tool_calls if tool_calls else None,
             finish_reason=stop_reason,
+            usage=usage,
         )
 
     async def generate_stream(

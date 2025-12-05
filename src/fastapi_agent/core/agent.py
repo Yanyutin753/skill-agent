@@ -164,11 +164,12 @@ class Agent:
         """
         self.execution_logs = []
         step = 0
+        total_input_tokens = 0
+        total_output_tokens = 0
 
-        # Start new log file for this run
         if self.logger:
             log_file = self.logger.start_new_run()
-            print(f"📝 Logging to: {log_file}")
+            print(f"Logging to: {log_file}")
 
         while step < self.max_steps:
             step += 1
@@ -225,13 +226,18 @@ class Agent:
                     )
                 return error_msg, self.execution_logs
 
-            # Log LLM response
+            if response.usage:
+                total_input_tokens += response.usage.input_tokens
+                total_output_tokens += response.usage.output_tokens
+
             log_entry = {
                 "type": "llm_response",
                 "thinking": response.thinking,
                 "content": response.content,
                 "has_tool_calls": bool(response.tool_calls),
                 "tool_count": len(response.tool_calls) if response.tool_calls else 0,
+                "input_tokens": response.usage.input_tokens if response.usage else 0,
+                "output_tokens": response.usage.output_tokens if response.usage else 0,
             }
             self.execution_logs.append(log_entry)
 
@@ -251,11 +257,13 @@ class Agent:
             )
             self.messages.append(assistant_msg)
 
-            # Check if task is complete (no tool calls)
             if not response.tool_calls:
                 self.execution_logs.append({
                     "type": "completion",
-                    "message": "Task completed successfully"
+                    "message": "Task completed successfully",
+                    "total_input_tokens": total_input_tokens,
+                    "total_output_tokens": total_output_tokens,
+                    "total_tokens": total_input_tokens + total_output_tokens,
                 })
                 if self.logger:
                     self.logger.log_completion(
@@ -331,11 +339,13 @@ class Agent:
                 )
                 self.messages.append(tool_msg)
 
-        # Max steps reached
         error_msg = f"Task couldn't be completed after {self.max_steps} steps."
         self.execution_logs.append({
             "type": "max_steps_reached",
-            "message": error_msg
+            "message": error_msg,
+            "total_input_tokens": total_input_tokens,
+            "total_output_tokens": total_output_tokens,
+            "total_tokens": total_input_tokens + total_output_tokens,
         })
         if self.logger:
             self.logger.log_completion(
