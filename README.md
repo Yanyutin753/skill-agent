@@ -17,7 +17,10 @@ ChatGPT 风格界面，支持 Thinking Process 展示、流式输出、会话管
 ### 基础能力
 - **FastAPI Web API**: 生产级 RESTful API，支持 OpenAPI 文档
 - **工具执行**: 文件操作（读/写/编辑）、Bash 命令、Skills 调用
-- **多模型支持**: 兼容 Anthropic Claude 和 MiniMax M2
+- **多模型支持**: 通过 LiteLLM 支持 100+ LLM 提供商，智能适配参数限制
+  - Anthropic Claude, OpenAI GPT-4, xAI Grok, DeepSeek, Qwen
+  - 自动模型名称标准化 (provider/model 格式)
+  - 自动调整 max_tokens 到提供商限制
 - **完整执行循环**: Agent 自动执行多步任务直到完成
 
 ### 高级功能
@@ -122,10 +125,10 @@ uv sync
 创建 `.env` 文件：
 
 ```bash
-# LLM 配置
+# LLM 配置 (支持 100+ 提供商)
 LLM_API_KEY=your_api_key_here
-LLM_API_BASE=https://api.anthropic.com
-LLM_MODEL=claude-3-5-sonnet-20241022
+LLM_API_BASE=  # 留空使用默认端点，或设置自定义/代理地址
+LLM_MODEL=anthropic/claude-3-5-sonnet-20241022  # 格式: provider/model
 
 # Agent 配置
 AGENT_MAX_STEPS=50
@@ -202,6 +205,45 @@ cd frontend && npm install && npm run dev
 ```
 
 前端访问: http://localhost:3001
+
+## 多 LLM 提供商支持
+
+系统通过 **LiteLLM** 统一接口支持 100+ LLM 提供商，并自动处理各提供商的差异。
+
+### 支持的提供商
+
+| 提供商 | 模型示例 | max_tokens 限制 |
+|--------|----------|----------------|
+| Anthropic | `anthropic/claude-3-5-sonnet-20241022` | 8192 |
+| OpenAI | `openai/gpt-4o` | 16384 |
+| xAI Grok | `xai/grok-4-fast-reasoning` | 16384 |
+| DeepSeek | `deepseek/deepseek-chat` | 8192 |
+| Qwen | `qwen/qwen-max` | 8192 |
+| Google | `gemini/gemini-1.5-pro` | 8192 |
+| OpenRouter | `openrouter/anthropic/claude-3.5-sonnet` | 依赖上游 |
+
+### 自动适配特性
+
+✅ **模型名称标准化**: 自动转换为 `provider/model` 格式
+```bash
+# 这些格式都会自动处理：
+claude-3-5-sonnet-20241022  → anthropic/claude-3-5-sonnet-20241022
+openai:gpt-4o               → openai/gpt-4o
+gpt-4o                      → openai/gpt-4o
+```
+
+✅ **参数限制自动调整**: 自动检测并调整 `max_tokens` 到提供商限制
+```
+请求 16384 tokens → DeepSeek 限制 8192 → 自动调整为 8192
+```
+
+### 配置示例
+
+详细配置查看：
+- [模型配置指南](docs/MODEL_STANDARDIZATION.md)
+- [OpenRouter 配置](docs/OPENROUTER.md)
+- [Grok 验证报告](docs/GROK_VALIDATION_REPORT.md)
+- [curl 示例](docs/CURL_EXAMPLES.md)
 
 ## 使用方法
 

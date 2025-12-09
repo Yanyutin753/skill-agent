@@ -1,98 +1,113 @@
-"""LLM client for Anthropic-compatible API."""
+"""LLM client using LiteLLM for multi-provider support."""
 
 import json
 import logging
 from typing import Any, AsyncIterator
 
-import httpx
+import litellm
+from litellm import acompletion
 
 from fastapi_agent.core.retry import RetryConfig, async_retry
 from fastapi_agent.schemas.message import FunctionCall, LLMResponse, Message, ToolCall, TokenUsage
 
 logger = logging.getLogger(__name__)
 
+litellm.drop_params = True
+
+import re
+
+CONTENT_FILTER_PATTERNS = [
+    re.compile(r"<has_function_call>[A-Za-z0-9\.\-\s]*"),
+    re.compile(r"</has_function_call>"),
+    re.compile(r"<\|im_start\|>[^<]*"),
+    re.compile(r"<\|im_end\|>"),
+    re.compile(r"<\|function_call\|>[^<]*"),
+    re.compile(r"`[a-z]+_[a-z_]+`", re.IGNORECASE),
+    re.compile(r"I[a-z]{2,}(?:will|now|use|the|to|am|search|get|find)[a-z]*", re.IGNORECASE),
+    re.compile(r"tool[a-zA-Z\u00C0-\u017F]+\.", re.IGNORECASE),
+]
+
+def _clean_content(content: str) -> str:
+    if not content:
+        return content
+    for pattern in CONTENT_FILTER_PATTERNS:
+        content = pattern.sub("", content)
+    return content.lstrip()
+
 
 class LLMClient:
-    """LLM Client for Anthropic-compatible endpoints.
+    """LLM Client using LiteLLM for multi-provider support.
 
-    Supports:
-    - Claude models via Anthropic API
-    - MiniMax M2 via Anthropic-compatible API
-    - Other compatible endpoints
+    Supports 100+ LLM providers including:
+    - OpenAI (gpt-4o, gpt-4, gpt-3.5-turbo)
+    - Anthropic (claude-3-5-sonnet, claude-3-opus)
+    - Azure OpenAI
+    - Google (gemini-pro, gemini-1.5-pro)
+    - Mistral, Cohere, Bedrock, etc.
+
+    Model naming convention:
+    - OpenAI: "openai/gpt-4o" or just "gpt-4o"
+    - Anthropic: "anthropic/claude-3-5-sonnet-20241022"
+    - Azure: "azure/deployment-name"
+    - Gemini: "gemini/gemini-1.5-pro"
+    - Custom: "openai/model-name" with custom api_base
     """
+
+    # Provider-specific max_tokens limits
+    PROVIDER_MAX_TOKENS = {
+        "deepseek": 8192,
+        "qwen": 8192,
+        "glm": 8192,
+        "openai": 16384,
+        "anthropic": 8192,
+        "gemini": 8192,
+        "xai": 16384,
+        "mistral": 16384,
+    }
 
     def __init__(
         self,
         api_key: str,
-        api_base: str = "https://api.anthropic.com",
-        model: str = "claude-3-5-sonnet-20241022",
+        api_base: str | None = None,
+        model: str = "gpt-4o",
         timeout: float = 120.0,
         retry_config: RetryConfig | None = None,
     ) -> None:
         self.api_key = api_key
-        self.api_base = api_base.rstrip("/")
+        self.api_base = api_base.rstrip("/") if api_base else None
         self.model = model
         self.timeout = timeout
         self.retry_config = retry_config or RetryConfig()
-
-        # Callback for tracking retry count
         self.retry_callback = None
 
-    async def _make_api_request(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """Execute API request (core method that can be retried).
+    def _get_max_tokens_limit(self) -> int:
+        """Get provider-specific max_tokens limit based on model name."""
+        model_lower = self.model.lower()
 
-        Args:
-            payload: Request payload
+        for provider, limit in self.PROVIDER_MAX_TOKENS.items():
+            if provider in model_lower:
+                return limit
+
+        # Default limit for unknown providers
+        return 16384
+
+    def _adjust_max_tokens(self, requested: int) -> int:
+        """Adjust max_tokens to respect provider limits."""
+        limit = self._get_max_tokens_limit()
+        if requested > limit:
+            logger.warning(
+                f"Requested max_tokens={requested} exceeds {self.model} limit of {limit}. "
+                f"Adjusting to {limit}."
+            )
+            return limit
+        return requested
+
+    def _convert_messages(self, messages: list[Message]) -> tuple[str | None, list[dict[str, Any]]]:
+        """Convert internal message format to OpenAI format.
 
         Returns:
-            API response result
-
-        Raises:
-            Exception: API call failed
+            Tuple of (system_message, api_messages)
         """
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.post(
-                f"{self.api_base}/v1/messages",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                    "anthropic-version": "2023-06-01",
-                },
-                json=payload,
-            )
-
-            result = response.json()
-
-        # Check for errors (Anthropic format)
-        if result.get("type") == "error":
-            error_info = result.get("error", {})
-            error_msg = f"API Error ({error_info.get('type')}): {error_info.get('message')}"
-            raise Exception(error_msg)
-
-        # Check for MiniMax base_resp errors
-        if "base_resp" in result:
-            base_resp = result["base_resp"]
-            status_code = base_resp.get("status_code")
-            status_msg = base_resp.get("status_msg")
-
-            if status_code not in [0, 1000, None]:
-                error_msg = f"MiniMax API Error (code {status_code}): {status_msg}"
-                if status_code == 1008:
-                    error_msg += "\n\n⚠️  Insufficient account balance, please recharge on MiniMax platform"
-                elif status_code == 2013:
-                    error_msg += f"\n\n⚠️  Model '{self.model}' is not supported"
-                raise Exception(error_msg)
-
-        return result
-
-    async def generate(
-        self,
-        messages: list[Message],
-        tools: list[dict[str, Any]] | None = None,
-        max_tokens: int = 16384,
-    ) -> LLMResponse:
-        """Generate response from LLM."""
-        # Extract system message
         system_message = None
         api_messages = []
 
@@ -101,106 +116,152 @@ class LLMClient:
                 system_message = msg.content
                 continue
 
-            # Handle user and assistant messages
-            if msg.role in ["user", "assistant"]:
-                if msg.role == "assistant" and (msg.thinking or msg.tool_calls):
-                    # Build content blocks for assistant with thinking/tool calls
-                    content_blocks = []
+            if msg.role == "user":
+                api_messages.append({"role": "user", "content": msg.content})
 
-                    if msg.thinking:
-                        content_blocks.append({"type": "thinking", "thinking": msg.thinking})
+            elif msg.role == "assistant":
+                message_dict: dict[str, Any] = {"role": "assistant"}
 
-                    if msg.content:
-                        content_blocks.append({"type": "text", "text": msg.content})
+                if msg.content:
+                    message_dict["content"] = msg.content
 
-                    if msg.tool_calls:
-                        for tool_call in msg.tool_calls:
-                            content_blocks.append({
-                                "type": "tool_use",
-                                "id": tool_call.id,
-                                "name": tool_call.function.name,
-                                "input": tool_call.function.arguments,
-                            })
+                if msg.tool_calls:
+                    message_dict["tool_calls"] = [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": json.dumps(tc.function.arguments)
+                                    if isinstance(tc.function.arguments, dict)
+                                    else tc.function.arguments,
+                            },
+                        }
+                        for tc in msg.tool_calls
+                    ]
 
-                    api_messages.append({"role": "assistant", "content": content_blocks})
-                else:
-                    api_messages.append({"role": msg.role, "content": msg.content})
+                api_messages.append(message_dict)
 
-            # Handle tool result messages
             elif msg.role == "tool":
                 api_messages.append({
-                    "role": "user",
-                    "content": [{
-                        "type": "tool_result",
-                        "tool_use_id": msg.tool_call_id,
-                        "content": msg.content,
-                    }]
+                    "role": "tool",
+                    "tool_call_id": msg.tool_call_id,
+                    "content": msg.content,
                 })
 
-        # Build request payload
-        payload = {
+        return system_message, api_messages
+
+    def _convert_tools(self, tools: list[dict[str, Any]] | None) -> list[dict[str, Any]] | None:
+        """Convert tools to OpenAI format if needed."""
+        if not tools:
+            return None
+
+        openai_tools = []
+        for tool in tools:
+            if "type" in tool and tool["type"] == "function":
+                openai_tools.append(tool)
+            else:
+                openai_tools.append({
+                    "type": "function",
+                    "function": {
+                        "name": tool.get("name"),
+                        "description": tool.get("description", ""),
+                        "parameters": tool.get("input_schema") or tool.get("parameters", {}),
+                    }
+                })
+        return openai_tools
+
+    async def _make_api_request(
+        self,
+        messages: list[dict[str, Any]],
+        system: str | None,
+        tools: list[dict[str, Any]] | None,
+        max_tokens: int,
+    ) -> Any:
+        """Execute API request via litellm."""
+        if system:
+            messages = [{"role": "system", "content": system}] + messages
+
+        kwargs: dict[str, Any] = {
             "model": self.model,
-            "messages": api_messages,
+            "messages": messages,
             "max_tokens": max_tokens,
+            "timeout": self.timeout,
         }
 
-        if system_message:
-            payload["system"] = system_message
+        if self.api_key:
+            kwargs["api_key"] = self.api_key
+        if self.api_base:
+            kwargs["api_base"] = self.api_base
 
         if tools:
-            payload["tools"] = tools
+            kwargs["tools"] = tools
+            kwargs["tool_choice"] = "auto"
 
-        # Make API request with retry logic
+        response = await acompletion(**kwargs)
+        return response
+
+    async def generate(
+        self,
+        messages: list[Message],
+        tools: list[dict[str, Any]] | None = None,
+        max_tokens: int = 16384,
+    ) -> LLMResponse:
+        """Generate response from LLM."""
+        # Adjust max_tokens to respect provider limits
+        max_tokens = self._adjust_max_tokens(max_tokens)
+
+        system_message, api_messages = self._convert_messages(messages)
+        openai_tools = self._convert_tools(tools)
+
         if self.retry_config.enabled:
-            # Apply retry logic
             retry_decorator = async_retry(
                 config=self.retry_config, on_retry=self.retry_callback
             )
             api_call = retry_decorator(self._make_api_request)
-            result = await api_call(payload)
+            response = await api_call(api_messages, system_message, openai_tools, max_tokens)
         else:
-            # Don't use retry
-            result = await self._make_api_request(payload)
+            response = await self._make_api_request(api_messages, system_message, openai_tools, max_tokens)
 
-        # Parse response
-        content_blocks = result.get("content", [])
-        stop_reason = result.get("stop_reason", "stop")
+        choice = response.choices[0]
+        message = choice.message
 
-        # Extract text, thinking, and tool calls
-        text_content = ""
-        thinking_content = ""
+        text_content = _clean_content(message.content or "")
         tool_calls = []
 
-        for block in content_blocks:
-            if block.get("type") == "text":
-                text_content += block.get("text", "")
-            elif block.get("type") == "thinking":
-                thinking_content += block.get("thinking", "")
-            elif block.get("type") == "tool_use":
+        if message.tool_calls:
+            for tc in message.tool_calls:
+                arguments = tc.function.arguments
+                if isinstance(arguments, str):
+                    try:
+                        arguments = json.loads(arguments)
+                    except json.JSONDecodeError:
+                        arguments = {}
+
                 tool_calls.append(
                     ToolCall(
-                        id=block.get("id"),
+                        id=tc.id,
                         type="function",
                         function=FunctionCall(
-                            name=block.get("name"),
-                            arguments=block.get("input", {}),
+                            name=tc.function.name,
+                            arguments=arguments,
                         ),
                     )
                 )
 
-        usage_data = result.get("usage", {})
+        usage_data = response.usage
         usage = TokenUsage(
-            input_tokens=usage_data.get("input_tokens", 0),
-            output_tokens=usage_data.get("output_tokens", 0),
-            cache_creation_input_tokens=usage_data.get("cache_creation_input_tokens", 0),
-            cache_read_input_tokens=usage_data.get("cache_read_input_tokens", 0),
+            input_tokens=getattr(usage_data, "prompt_tokens", 0),
+            output_tokens=getattr(usage_data, "completion_tokens", 0),
+            cache_creation_input_tokens=0,
+            cache_read_input_tokens=0,
         )
 
         return LLMResponse(
             content=text_content,
-            thinking=thinking_content if thinking_content else None,
+            thinking=None,
             tool_calls=tool_calls if tool_calls else None,
-            finish_reason=stop_reason,
+            finish_reason=choice.finish_reason or "stop",
             usage=usage,
         )
 
@@ -210,166 +271,104 @@ class LLMClient:
         tools: list[dict[str, Any]] | None = None,
         max_tokens: int = 16384,
     ) -> AsyncIterator[dict[str, Any]]:
-        """Generate streaming response from LLM.
+        """Generate streaming response from LLM."""
+        # Adjust max_tokens to respect provider limits
+        max_tokens = self._adjust_max_tokens(max_tokens)
 
-        Yields:
-            dict: Stream events包含:
-                - type: 'thinking_delta' | 'content_delta' | 'tool_use' | 'done'
-                - delta: 增量文本 (for delta events)
-                - tool_call: 工具调用信息 (for tool_use events)
-                - response: 完整响应 (for done event)
-        """
-        # Extract system message and build API messages (same as generate)
-        system_message = None
-        api_messages = []
+        system_message, api_messages = self._convert_messages(messages)
+        openai_tools = self._convert_tools(tools)
 
-        for msg in messages:
-            if msg.role == "system":
-                system_message = msg.content
-                continue
+        if system_message:
+            api_messages = [{"role": "system", "content": system_message}] + api_messages
 
-            if msg.role in ["user", "assistant"]:
-                if msg.role == "assistant" and (msg.thinking or msg.tool_calls):
-                    content_blocks = []
-                    if msg.thinking:
-                        content_blocks.append({"type": "thinking", "thinking": msg.thinking})
-                    if msg.content:
-                        content_blocks.append({"type": "text", "text": msg.content})
-                    if msg.tool_calls:
-                        for tool_call in msg.tool_calls:
-                            content_blocks.append({
-                                "type": "tool_use",
-                                "id": tool_call.id,
-                                "name": tool_call.function.name,
-                                "input": tool_call.function.arguments,
-                            })
-                    api_messages.append({"role": "assistant", "content": content_blocks})
-                else:
-                    api_messages.append({"role": msg.role, "content": msg.content})
-            elif msg.role == "tool":
-                api_messages.append({
-                    "role": "user",
-                    "content": [{
-                        "type": "tool_result",
-                        "tool_use_id": msg.tool_call_id,
-                        "content": msg.content,
-                    }]
-                })
-
-        # Build request payload with stream=True
-        payload = {
+        kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": api_messages,
             "max_tokens": max_tokens,
-            "stream": True,  # Enable streaming
+            "timeout": self.timeout,
+            "stream": True,
         }
 
-        if system_message:
-            payload["system"] = system_message
-        if tools:
-            payload["tools"] = tools
+        if self.api_key:
+            kwargs["api_key"] = self.api_key
+        if self.api_base:
+            kwargs["api_base"] = self.api_base
 
-        # Make streaming API request
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            async with client.stream(
-                "POST",
-                f"{self.api_base}/v1/messages",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                    "anthropic-version": "2023-06-01",
-                },
-                json=payload,
-            ) as response:
-                # Accumulate complete response for final event
-                text_content = ""
-                thinking_content = ""
-                tool_calls = []
-                current_tool = None
+        if openai_tools:
+            kwargs["tools"] = openai_tools
+            kwargs["tool_choice"] = "auto"
 
-                async for line in response.aiter_lines():
-                    if not line.strip():
-                        continue
+        response = await acompletion(**kwargs)
 
-                    # Parse SSE format: "data: {...}"
-                    if line.startswith("data: "):
-                        data_str = line[6:]  # Remove "data: " prefix
+        text_content = ""
+        tool_calls: list[ToolCall] = []
+        current_tool_calls: dict[int, dict] = {}
 
-                        try:
-                            event = json.loads(data_str)
-                        except json.JSONDecodeError:
-                            continue
+        async for chunk in response:
+            if not chunk.choices:
+                continue
 
-                        event_type = event.get("type")
+            delta = chunk.choices[0].delta
+            finish_reason = chunk.choices[0].finish_reason
 
-                        # content_block_delta: streaming text/thinking
-                        if event_type == "content_block_delta":
-                            delta = event.get("delta", {})
-                            delta_type = delta.get("type")
+            if hasattr(delta, "content") and delta.content:
+                cleaned_delta = _clean_content(delta.content)
+                if cleaned_delta:
+                    text_content += cleaned_delta
+                    yield {
+                        "type": "content_delta",
+                        "delta": cleaned_delta,
+                    }
 
-                            if delta_type == "text_delta":
-                                text_delta = delta.get("text", "")
-                                text_content += text_delta
-                                yield {
-                                    "type": "content_delta",
-                                    "delta": text_delta,
-                                }
-                            elif delta_type == "thinking_delta":
-                                thinking_delta = delta.get("thinking", "")
-                                thinking_content += thinking_delta
-                                yield {
-                                    "type": "thinking_delta",
-                                    "delta": thinking_delta,
-                                }
-                            elif delta_type == "input_json_delta":
-                                # Tool input streaming (partial JSON)
-                                if current_tool:
-                                    current_tool["input_json"] += delta.get("partial_json", "")
+            if hasattr(delta, "tool_calls") and delta.tool_calls:
+                for tc_delta in delta.tool_calls:
+                    idx = tc_delta.index
 
-                        # content_block_start: tool use start
-                        elif event_type == "content_block_start":
-                            content_block = event.get("content_block", {})
-                            if content_block.get("type") == "tool_use":
-                                current_tool = {
-                                    "id": content_block.get("id"),
-                                    "name": content_block.get("name"),
-                                    "input_json": "",
-                                }
+                    if idx not in current_tool_calls:
+                        current_tool_calls[idx] = {
+                            "id": tc_delta.id or "",
+                            "name": "",
+                            "arguments": "",
+                        }
 
-                        # content_block_stop: tool use complete
-                        elif event_type == "content_block_stop":
-                            if current_tool:
-                                # Parse complete tool input
-                                try:
-                                    tool_input = json.loads(current_tool["input_json"])
-                                except json.JSONDecodeError:
-                                    tool_input = {}
+                    if tc_delta.id:
+                        current_tool_calls[idx]["id"] = tc_delta.id
 
-                                tool_call = ToolCall(
-                                    id=current_tool["id"],
-                                    type="function",
-                                    function=FunctionCall(
-                                        name=current_tool["name"],
-                                        arguments=tool_input,
-                                    ),
-                                )
-                                tool_calls.append(tool_call)
+                    if tc_delta.function:
+                        if tc_delta.function.name:
+                            current_tool_calls[idx]["name"] = tc_delta.function.name
+                        if tc_delta.function.arguments:
+                            current_tool_calls[idx]["arguments"] += tc_delta.function.arguments
 
-                                yield {
-                                    "type": "tool_use",
-                                    "tool_call": tool_call,
-                                }
-                                current_tool = None
+            if finish_reason:
+                for idx in sorted(current_tool_calls.keys()):
+                    tc_data = current_tool_calls[idx]
+                    try:
+                        arguments = json.loads(tc_data["arguments"])
+                    except json.JSONDecodeError:
+                        arguments = {}
 
-                        # message_stop: stream complete
-                        elif event_type == "message_stop":
-                            final_response = LLMResponse(
-                                content=text_content,
-                                thinking=thinking_content if thinking_content else None,
-                                tool_calls=tool_calls if tool_calls else None,
-                                finish_reason="stop",
-                            )
-                            yield {
-                                "type": "done",
-                                "response": final_response,
-                            }
+                    tool_call = ToolCall(
+                        id=tc_data["id"],
+                        type="function",
+                        function=FunctionCall(
+                            name=tc_data["name"],
+                            arguments=arguments,
+                        ),
+                    )
+                    tool_calls.append(tool_call)
+                    yield {
+                        "type": "tool_use",
+                        "tool_call": tool_call,
+                    }
+
+                final_response = LLMResponse(
+                    content=_clean_content(text_content),
+                    thinking=None,
+                    tool_calls=tool_calls if tool_calls else None,
+                    finish_reason=finish_reason,
+                )
+                yield {
+                    "type": "done",
+                    "response": final_response,
+                }

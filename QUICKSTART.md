@@ -35,9 +35,14 @@ vim fastapi_agent/config/config.yaml
 
 ```bash
 export LLM_API_KEY="your_api_key_here"
-export LLM_API_BASE="https://api.anthropic.com"
-export LLM_MODEL="claude-3-5-sonnet-20241022"
+export LLM_API_BASE=""  # 留空使用默认端点
+export LLM_MODEL="anthropic/claude-3-5-sonnet-20241022"  # 格式: provider/model
 ```
+
+**支持的模型格式**：
+- 标准格式（推荐）：`anthropic/claude-3-5-sonnet-20241022`
+- 自动检测：`claude-3-5-sonnet-20241022` → 自动添加 `anthropic/`
+- 旧格式兼容：`openai:gpt-4o` → 自动转换为 `openai/gpt-4o`
 
 ### 4. 启动服务
 

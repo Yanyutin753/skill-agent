@@ -26,18 +26,20 @@ class Settings(BaseSettings):
     # API settings
     API_V1_PREFIX: str = "/api/v1"
     ALLOWED_ORIGINS: list[str] = Field(
-        default_factory=lambda: ["http://localhost:3000", "http://localhost:8000"]
+        default_factory=lambda: ["*"]
     )
 
-    # LLM settings
+    # LLM settings (supports 100+ providers via LiteLLM)
+    # Model naming: "provider/model" e.g. "openai/gpt-4o", "anthropic/claude-3-5-sonnet-20241022"
+    # For custom endpoints: set LLM_API_BASE and use "openai/model-name" format
     LLM_API_KEY: str = Field(default="", description="API key for LLM service")
     LLM_API_BASE: str = Field(
-        default="https://api.anthropic.com",
-        description="Base URL for LLM API"
+        default="",
+        description="Optional custom API base URL (leave empty for default provider endpoints)"
     )
     LLM_MODEL: str = Field(
-        default="claude-3-5-sonnet-20241022",
-        description="Model name to use"
+        default="anthropic/claude-3-5-sonnet-20241022",
+        description="Model name in format 'provider/model' e.g. openai/gpt-4o, anthropic/claude-3-5-sonnet-20241022"
     )
 
     # Agent settings
@@ -125,6 +127,34 @@ class Settings(BaseSettings):
         description="PostgreSQL table name for sessions"
     )
 
+    # Run log settings
+    ENABLE_DEBUG_LOGGING: bool = Field(
+        default=False,
+        description="Enable debug logging to files (when False, only console output)"
+    )
+    RUN_LOG_BACKEND: str = Field(
+        default="file",
+        description="Run log storage backend: 'file' or 'redis'"
+    )
+    RUN_LOG_DIR: str = Field(
+        default="./logs",
+        description="Directory for run log files (for file backend)"
+    )
+    RUN_LOG_RETENTION_DAYS: int = Field(
+        default=30,
+        ge=1,
+        le=365,
+        description="Number of days to retain run logs"
+    )
+    RUN_LOG_REDIS_PREFIX: str = Field(
+        default="agent_run:",
+        description="Redis key prefix for run logs"
+    )
+    RUN_LOG_REDIS_TTL: int = Field(
+        default=86400 * 7,
+        description="TTL for run logs in Redis (seconds, default 7 days)"
+    )
+
     @property
     def postgres_dsn(self) -> str:
         """Build PostgreSQL connection string."""
@@ -159,7 +189,7 @@ class Settings(BaseSettings):
 
     # System prompt
     SYSTEM_PROMPT: str = Field(
-        default="""你是 Claude Code，一个功能强大的 AI 助手。
+        default="""你是一个功能强大的 AI 助手。
 
 ## 核心能力
 - **文件操作**：读取、编写、编辑各类文件
@@ -203,6 +233,50 @@ class Settings(BaseSettings):
 
 {SKILLS_METADATA}"""
     )
+
+    @field_validator("LLM_MODEL")
+    @classmethod
+    def validate_model_format(cls, v: str) -> str:
+        """Standardize model name format to 'provider/model'.
+
+        Supports:
+        - Standard format: "anthropic/claude-3-5-sonnet-20241022"
+        - Legacy colon format: "openai:gpt-4o" -> "openai/gpt-4o"
+        - No prefix format: "claude-3-5-sonnet-20241022" -> auto-detect provider
+        """
+        if not v or not v.strip():
+            raise ValueError("LLM_MODEL cannot be empty")
+
+        v = v.strip()
+
+        # Convert colon to slash (legacy format)
+        if ":" in v and "/" not in v:
+            v = v.replace(":", "/")
+
+        # If already has provider prefix, return as-is
+        if "/" in v:
+            return v
+
+        # Auto-detect provider based on model name
+        model_lower = v.lower()
+
+        # Provider detection rules
+        if "claude" in model_lower:
+            return f"anthropic/{v}"
+        elif "gpt" in model_lower or v.startswith("o1") or v.startswith("o3"):
+            return f"openai/{v}"
+        elif "gemini" in model_lower:
+            return f"gemini/{v}"
+        elif "mistral" in model_lower:
+            return f"mistral/{v}"
+        elif "llama" in model_lower:
+            return f"together_ai/{v}"
+        elif "qwen" in model_lower or "deepseek" in model_lower:
+            # Chinese models, often used with custom API base
+            return f"openai/{v}"
+        else:
+            # Default to openai for unknown models (custom endpoints)
+            return f"openai/{v}"
 
     @field_validator("AGENT_WORKSPACE_DIR")
     @classmethod
