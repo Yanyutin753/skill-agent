@@ -55,7 +55,7 @@ class GetSkillTool(Tool):
 
 
 def create_skill_tools(
-    skills_dir: str = "./skills",
+    skills_dir: str = "src/fastapi_agent/skills",
 ) -> tuple[list[Tool], SkillLoader | None]:
     """
     创建 Progressive Disclosure 的 skill 工具

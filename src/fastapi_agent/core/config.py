@@ -48,7 +48,7 @@ class Settings(BaseSettings):
 
     # Skills settings
     ENABLE_SKILLS: bool = Field(default=True, description="Enable Claude Skills support")
-    SKILLS_DIR: str = Field(default="./skills", description="Skills directory path")
+    SKILLS_DIR: str = Field(default="src/fastapi_agent/skills", description="Skills directory path")
 
     # MCP (Model Context Protocol) settings
     ENABLE_MCP: bool = Field(default=True, description="Enable MCP tool integration")

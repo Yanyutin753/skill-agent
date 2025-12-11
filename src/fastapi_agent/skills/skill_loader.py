@@ -40,7 +40,7 @@ class Skill:
 class SkillLoader:
     """Skill 加载器"""
 
-    def __init__(self, skills_dir: str = "./skills") -> None:
+    def __init__(self, skills_dir: str = "src/fastapi_agent/skills") -> None:
         """
         初始化 Skill Loader
 
