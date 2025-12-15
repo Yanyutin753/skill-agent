@@ -11,9 +11,14 @@ from fastapi_agent.core.prompt_builder import (
     SystemPromptConfig,
     SystemPromptBuilder,
 )
-from fastapi_agent.schemas.message import Message
+from fastapi_agent.schemas.message import Message, UserInputRequest, UserInputField
 from fastapi_agent.skills.skill_loader import SkillLoader
 from fastapi_agent.tools.base import Tool, ToolResult
+from fastapi_agent.tools.user_input_tool import (
+    GetUserInputTool,
+    is_user_input_tool_call,
+    parse_user_input_fields,
+)
 
 
 class Agent:
@@ -102,6 +107,11 @@ class Agent:
 
         # Execution logs for API response
         self.execution_logs: list[dict[str, Any]] = []
+        
+        # Human-in-the-loop state
+        self._pending_user_input: Optional[UserInputRequest] = None
+        self._current_step: int = 0
+        self._paused_tool_call_id: Optional[str] = None
 
     def _collect_tool_instructions(self) -> list[str]:
         """收集需要添加到系统提示的工具说明."""
@@ -288,6 +298,44 @@ class Agent:
                     "arguments": arguments,
                 })
 
+                # Check if this is a user input request - pause execution
+                if is_user_input_tool_call(function_name):
+                    input_fields = parse_user_input_fields(arguments)
+                    self._pending_user_input = UserInputRequest(
+                        tool_call_id=tool_call_id,
+                        fields=[
+                            UserInputField(
+                                field_name=f.field_name,
+                                field_type=f.field_type,
+                                field_description=f.field_description,
+                            )
+                            for f in input_fields
+                        ],
+                        context=arguments.get("context"),
+                    )
+                    self._current_step = step
+                    self._paused_tool_call_id = tool_call_id
+                    
+                    # Log the pause
+                    self.execution_logs.append({
+                        "type": "user_input_required",
+                        "tool_call_id": tool_call_id,
+                        "fields": [f.model_dump() for f in input_fields],
+                        "context": arguments.get("context"),
+                    })
+                    
+                    if self.logger:
+                        self.logger.log_tool_execution(
+                            tool_name=function_name,
+                            arguments=arguments,
+                            success=True,
+                            content="Waiting for user input",
+                            execution_time=0,
+                        )
+                    
+                    # Return with pending input request
+                    return "Waiting for user input", self.execution_logs
+
                 # Execute tool and measure execution time
                 start_time = time.time()
                 if function_name not in self.tools:
@@ -360,6 +408,68 @@ class Agent:
     def get_history(self) -> list[Message]:
         """Get message history."""
         return self.messages.copy()
+
+    @property
+    def pending_user_input(self) -> Optional[UserInputRequest]:
+        """Get pending user input request if agent is paused."""
+        return self._pending_user_input
+
+    @property
+    def is_waiting_for_input(self) -> bool:
+        """Check if agent is waiting for user input."""
+        return self._pending_user_input is not None
+
+    def provide_user_input(self, field_values: dict[str, Any]) -> None:
+        """Provide user input to resume agent execution.
+        
+        Args:
+            field_values: Map of field_name to provided value
+        """
+        if not self._pending_user_input:
+            raise ValueError("No pending user input request")
+        
+        # Update field values in the request
+        for field in self._pending_user_input.fields:
+            if field.field_name in field_values:
+                field.value = field_values[field.field_name]
+        
+        # Create tool result message with user input
+        import json
+        user_input_result = [
+            {"name": field.field_name, "value": field.value}
+            for field in self._pending_user_input.fields
+        ]
+        
+        tool_msg = Message(
+            role="tool",
+            content=f"User inputs received: {json.dumps(user_input_result, ensure_ascii=False)}",
+            tool_call_id=self._pending_user_input.tool_call_id,
+            name=GetUserInputTool.TOOL_NAME,
+        )
+        self.messages.append(tool_msg)
+        
+        # Log the user input
+        self.execution_logs.append({
+            "type": "user_input_received",
+            "tool_call_id": self._pending_user_input.tool_call_id,
+            "field_values": field_values,
+        })
+        
+        # Clear pending state
+        self._pending_user_input = None
+        self._paused_tool_call_id = None
+
+    async def resume(self) -> tuple[str, list[dict[str, Any]]]:
+        """Resume agent execution after user input is provided.
+        
+        Returns:
+            Tuple of (final_response, execution_logs)
+        """
+        if self._pending_user_input:
+            raise ValueError("Cannot resume: still waiting for user input. Call provide_user_input first.")
+        
+        # Continue execution from where we left off
+        return await self.run()
 
     async def run_stream(self) -> AsyncIterator[dict[str, Any]]:
         """Execute agent loop with streaming output.
@@ -499,6 +609,46 @@ class Agent:
                 function_name = tool_call.function.name
                 arguments = tool_call.function.arguments
 
+                # Check if this is a user input request - pause execution
+                if is_user_input_tool_call(function_name):
+                    input_fields = parse_user_input_fields(arguments)
+                    self._pending_user_input = UserInputRequest(
+                        tool_call_id=tool_call_id,
+                        fields=[
+                            UserInputField(
+                                field_name=f.field_name,
+                                field_type=f.field_type,
+                                field_description=f.field_description,
+                            )
+                            for f in input_fields
+                        ],
+                        context=arguments.get("context"),
+                    )
+                    self._current_step = step
+                    self._paused_tool_call_id = tool_call_id
+                    
+                    # Yield user input required event
+                    yield {
+                        "type": "user_input_required",
+                        "data": {
+                            "tool_call_id": tool_call_id,
+                            "fields": [f.model_dump() for f in input_fields],
+                            "context": arguments.get("context"),
+                        },
+                    }
+                    
+                    if self.logger:
+                        self.logger.log_tool_execution(
+                            tool_name=function_name,
+                            arguments=arguments,
+                            success=True,
+                            content="Waiting for user input",
+                            execution_time=0,
+                        )
+                    
+                    # Return - execution will resume after user provides input
+                    return
+
                 # Execute tool and measure time
                 start_time = time.time()
                 if function_name not in self.tools:
@@ -569,3 +719,16 @@ class Agent:
                 "reason": "max_steps_reached",
             },
         }
+
+    async def resume_stream(self) -> AsyncIterator[dict[str, Any]]:
+        """Resume agent execution with streaming after user input is provided.
+        
+        Yields:
+            dict: Stream events (same format as run_stream)
+        """
+        if self._pending_user_input:
+            raise ValueError("Cannot resume: still waiting for user input. Call provide_user_input first.")
+        
+        # Continue execution with streaming
+        async for event in self.run_stream():
+            yield event

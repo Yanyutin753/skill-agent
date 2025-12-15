@@ -23,7 +23,14 @@ from fastapi_agent.core.team import Team
 from fastapi_agent.core.config import Settings
 from fastapi_agent.core.session import AgentRunRecord
 from fastapi_agent.core.session_manager import UnifiedAgentSessionManager
-from fastapi_agent.schemas.message import AgentRequest, AgentResponse, AgentConfig, Message
+from fastapi_agent.schemas.message import (
+    AgentRequest, 
+    AgentResponse, 
+    AgentConfig, 
+    Message,
+    UserInputRequest,
+    UserInputResponse,
+)
 
 router = APIRouter()
 
@@ -147,6 +154,21 @@ async def run_agent(
         # Add user message and run
         agent.add_user_message(request.message)
         result, logs = await agent.run()
+
+        # Check if agent is waiting for user input
+        if agent.is_waiting_for_input:
+            # Store agent state for resume (in a real app, use proper state management)
+            # For now, we return the input request and expect client to call /run/resume
+            return AgentResponse(
+                success=True,
+                message=result,
+                steps=len([log for log in logs if log.get("type") == "step"]),
+                logs=logs,
+                session_id=request.session_id,
+                run_id=run_id,
+                requires_input=True,
+                input_request=agent.pending_user_input,
+            )
 
         # Determine success
         success = bool(result and not result.startswith("LLM call failed"))

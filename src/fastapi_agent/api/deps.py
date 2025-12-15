@@ -13,7 +13,7 @@ from fastapi_agent.core.session_manager import (
     UnifiedTeamSessionManager,
 )
 from fastapi_agent.skills import create_skill_tools
-from fastapi_agent.tools import BashTool, EditTool, ReadTool, Tool, WriteTool, SpawnAgentTool
+from fastapi_agent.tools import BashTool, EditTool, ReadTool, Tool, WriteTool, SpawnAgentTool, GetUserInputTool
 from fastapi_agent.tools.mcp_loader import cleanup_mcp_connections, load_mcp_tools_async
 from fastapi_agent.tools.note_tool import RecallNoteTool, SessionNoteTool
 from fastapi_agent.tools.rag_tool import RAGTool
@@ -286,6 +286,7 @@ def get_tools(workspace_dir: str | None = None) -> list[Tool]:
         BashTool(),
         SessionNoteTool(memory_file=str(workspace_path / ".agent_memory.json")),
         RecallNoteTool(memory_file=str(workspace_path / ".agent_memory.json")),
+        GetUserInputTool(),  # Human-in-the-loop tool
     ]
 
     # Load skills if enabled
@@ -453,6 +454,7 @@ class AgentFactory:
                 BashTool(),
                 SessionNoteTool(memory_file=str(Path(workspace_dir) / ".agent_memory.json")),
                 RecallNoteTool(memory_file=str(Path(workspace_dir) / ".agent_memory.json")),
+                GetUserInputTool(),  # Human-in-the-loop tool
             ]
 
             # Build tool name mapping (supports both actual names and short aliases)

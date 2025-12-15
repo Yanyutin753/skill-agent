@@ -1,25 +1,24 @@
 @import "tailwindcss";
 
 :root {
-  /* ChatGPT-style premium color palette */
   --bg-primary: #ffffff;
-  --bg-secondary: #f9f9f9; /* Lighter gray for input area/secondary */
-  --bg-sidebar: #000000;   /* Dark sidebar like ChatGPT */
-  --bg-sidebar-hover: #202123;
+  --bg-secondary: #f7f7f8;
+  --bg-sidebar: #f9f9f9;
+  --bg-sidebar-hover: #ececec;
   
-  --bg-user-message: #f4f4f4; /* Light gray bubble for user */
+  --bg-user-message: #f4f4f4;
   --bg-assistant-message: transparent;
   
   --text-primary: #0d0d0d;
-  --text-secondary: #6b7280; /* Gray-500 */
-  --text-sidebar: #ececf1;
-  --text-sidebar-secondary: #acacbe;
+  --text-secondary: #6b7280;
+  --text-sidebar: #0d0d0d;
+  --text-sidebar-secondary: #6b7280;
   
   --border-color: #e5e5e5;
-  --border-sidebar: #4d4d4f;
+  --border-sidebar: #e5e5e5;
 
-  --accent-primary: #10a37f; /* ChatGPT Green */
-  --accent-hover: #1a7f64;
+  --accent-primary: #0d0d0d;
+  --accent-hover: #333333;
   
   --shadow-card: 0 0 15px rgba(0,0,0,0.05);
   --shadow-input: 0 0 20px rgba(0,0,0,0.05);

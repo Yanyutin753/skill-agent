@@ -8,11 +8,28 @@ export interface AgentRequest {
   num_history_runs?: number;
 }
 
+export interface UserInputField {
+  field_name: string;
+  field_type: string;
+  field_description: string;
+  value?: any;
+}
+
+export interface UserInputRequest {
+  tool_call_id: string;
+  fields: UserInputField[];
+  context?: string;
+}
+
 export interface AgentResponse {
   success: boolean;
   message: string;
   steps: number;
   logs: ExecutionLog[];
+  requires_input?: boolean;
+  input_request?: UserInputRequest;
+  run_id?: string;
+  session_id?: string;
 }
 
 export type ExecutionLogType = 'step' | 'llm_response' | 'tool_call' | 'tool_result' | 'completion' | 'max_steps_reached' | 'error';
@@ -53,8 +70,15 @@ export type StreamEventType =
   | 'content'
   | 'tool_call'
   | 'tool_result'
+  | 'user_input_required'
   | 'done'
   | 'error';
+
+export interface StreamUserInputData {
+  tool_call_id: string;
+  fields: UserInputField[];
+  context?: string;
+}
 
 export interface StreamEvent {
   type: StreamEventType;

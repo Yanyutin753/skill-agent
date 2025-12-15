@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { SSEClient } from '@/services/sse';
 import { useChatStore } from '@/stores/chatStore';
 import { useSessionStore } from '@/stores/sessionStore';
-import type { AgentRequest, StreamEvent } from '@/types/agent';
+import type { AgentRequest, StreamEvent, UserInputField } from '@/types/agent';
 import type { Message } from '@/types/message';
 
 export function useAgentStream() {
@@ -105,6 +105,14 @@ export function useAgentStream() {
           });
           break;
 
+        case 'user_input_required':
+          chatStore.setPendingUserInput({
+            toolCallId: data.tool_call_id,
+            fields: data.fields as UserInputField[],
+            context: data.context,
+          });
+          break;
+
         case 'done':
           chatStore.stopStreaming();
           break;
@@ -131,5 +139,8 @@ export function useAgentStream() {
     maxSteps: chatStore.maxSteps,
     tokenUsage: chatStore.tokenUsage,
     tokenLimit: chatStore.tokenLimit,
+    pendingUserInput: chatStore.pendingUserInput,
+    isWaitingForInput: chatStore.isWaitingForInput,
+    clearPendingUserInput: chatStore.clearPendingUserInput,
   };
 }

@@ -1,6 +1,7 @@
 // Chat state management store using Zustand
 import { create } from 'zustand';
 import type { Message, ToolCall } from '@/types/message';
+import type { UserInputField } from '@/types/agent';
 
 function cleanContent(content: string): string {
   if (!content) return content;
@@ -10,18 +11,23 @@ function cleanContent(content: string): string {
     .replace(/^\s+/, '');
 }
 
+export interface PendingUserInput {
+  toolCallId: string;
+  fields: UserInputField[];
+  context?: string;
+}
+
 interface ChatState {
-  // Current message being streamed
   streamingMessage: Message | null;
   isStreaming: boolean;
-
-  // Execution status
   currentStep: number;
   maxSteps: number;
   tokenUsage: number;
   tokenLimit: number;
+  
+  pendingUserInput: PendingUserInput | null;
+  isWaitingForInput: boolean;
 
-  // Actions
   startStreaming: (messageId: string) => void;
   stopStreaming: () => void;
   appendThinking: (delta: string) => void;
@@ -33,6 +39,8 @@ interface ChatState {
   ) => void;
   setStepInfo: (current: number, max: number) => void;
   setTokenInfo: (usage: number, limit: number) => void;
+  setPendingUserInput: (input: PendingUserInput) => void;
+  clearPendingUserInput: () => void;
   reset: () => void;
   getStreamingMessage: () => Message | null;
 }
@@ -44,6 +52,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   maxSteps: 50,
   tokenUsage: 0,
   tokenLimit: 120000,
+  pendingUserInput: null,
+  isWaitingForInput: false,
 
   startStreaming: (messageId: string) => {
     set({
@@ -134,6 +144,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ tokenUsage: usage, tokenLimit: limit });
   },
 
+  setPendingUserInput: (input: PendingUserInput) => {
+    set({ 
+      pendingUserInput: input, 
+      isWaitingForInput: true,
+      isStreaming: false,
+    });
+  },
+
+  clearPendingUserInput: () => {
+    set({ pendingUserInput: null, isWaitingForInput: false });
+  },
+
   reset: () => {
     set({
       streamingMessage: null,
@@ -142,6 +164,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       maxSteps: 50,
       tokenUsage: 0,
       tokenLimit: 120000,
+      pendingUserInput: null,
+      isWaitingForInput: false,
     });
   },
 

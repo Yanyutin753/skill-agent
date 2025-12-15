@@ -5,6 +5,7 @@ import { Send, Loader2, Trash2, Plus, Bot, User, Database, Bug } from 'lucide-re
 import { useSessionStore } from '@/stores/sessionStore';
 import { useChatStore } from '@/stores/chatStore';
 import { useAgentStream } from '@/hooks/useAgentStream';
+import UserInputForm from '@/components/UserInputForm';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -24,8 +25,27 @@ export default function Chat() {
   const { sessions, currentSessionId, loadSessions, createSession, switchSession, deleteSession } =
     useSessionStore();
   const { streamingMessage } = useChatStore();
-  const { sendMessage, isStreaming, currentStep, maxSteps } =
-    useAgentStream();
+  const { 
+    sendMessage, 
+    isStreaming, 
+    currentStep, 
+    maxSteps,
+    pendingUserInput,
+    isWaitingForInput,
+    clearPendingUserInput,
+  } = useAgentStream();
+
+  const handleUserInputSubmit = async (values: Record<string, any>) => {
+    clearPendingUserInput();
+    const inputSummary = Object.entries(values)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(', ');
+    await sendMessage(`[用户输入] ${inputSummary}`);
+  };
+
+  const handleUserInputCancel = () => {
+    clearPendingUserInput();
+  };
 
   const currentSession = sessions.find((s) => s.id === currentSessionId);
 
@@ -98,7 +118,7 @@ export default function Chat() {
                   e.stopPropagation();
                   deleteSession(session.id);
                 }}
-                className="absolute right-2 opacity-0 group-hover:opacity-100 p-1 hover:text-white text-[var(--text-sidebar-secondary)] transition-all"
+                className="absolute right-2 opacity-0 group-hover:opacity-100 p-1 hover:text-gray-900 text-[var(--text-sidebar-secondary)] transition-all"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -144,13 +164,6 @@ export default function Chat() {
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col relative min-w-0">
-        {/* Top Bar (Mobile/Tablet only usually, but keeping simple for now) */}
-        <div className="h-12 flex items-center justify-center border-b border-transparent">
-          <span className="text-[var(--text-secondary)] text-sm font-medium">
-            Model: GPT-4o (Simulated)
-          </span>
-        </div>
-
         {/* Messages */}
         <div className="flex-1 overflow-y-auto scroll-smooth">
           <div className="max-w-3xl mx-auto px-4 pb-32 pt-4">
@@ -212,6 +225,18 @@ export default function Chat() {
                 </div>
               ))
             )}
+            
+            {isWaitingForInput && pendingUserInput && (
+              <div className="max-w-3xl mx-auto">
+                <UserInputForm
+                  fields={pendingUserInput.fields}
+                  context={pendingUserInput.context}
+                  onSubmit={handleUserInputSubmit}
+                  onCancel={handleUserInputCancel}
+                />
+              </div>
+            )}
+            
             <div ref={messagesEndRef} className="h-4" />
           </div>
         </div>

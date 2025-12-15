@@ -17,6 +17,27 @@ class ToolCall(BaseModel):
     function: FunctionCall
 
 
+class UserInputField(BaseModel):
+    """Schema for a single user input field request."""
+    field_name: str = Field(..., description="The name of the field")
+    field_type: str = Field(default="str", description="Expected type (str, int, float, bool, list, dict)")
+    field_description: str = Field(..., description="Description of what information is needed")
+    value: Optional[Any] = Field(default=None, description="Value provided by user (filled after input)")
+
+
+class UserInputRequest(BaseModel):
+    """Request for user input - sent when agent needs additional information."""
+    tool_call_id: str = Field(..., description="ID of the tool call that triggered this request")
+    fields: List[UserInputField] = Field(default_factory=list, description="Fields requiring user input")
+    context: Optional[str] = Field(default=None, description="Context explaining why input is needed")
+
+
+class UserInputResponse(BaseModel):
+    """User's response to an input request."""
+    tool_call_id: str = Field(..., description="ID of the original tool call")
+    field_values: dict[str, Any] = Field(default_factory=dict, description="Map of field_name to provided value")
+
+
 class Message(BaseModel):
     """Message in conversation history."""
     role: str  # system, user, assistant, tool
@@ -129,3 +150,10 @@ class AgentResponse(BaseModel):
     logs: List[dict[str, Any]] = []
     session_id: Optional[str] = Field(None, description="Session ID if session was used")
     run_id: Optional[str] = Field(None, description="Unique ID for this run")
+    
+    # Human-in-the-loop support
+    requires_input: bool = Field(default=False, description="Whether agent is waiting for user input")
+    input_request: Optional[UserInputRequest] = Field(
+        default=None,
+        description="Details of required user input (when requires_input=True)"
+    )
