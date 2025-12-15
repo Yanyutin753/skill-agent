@@ -33,6 +33,7 @@ ChatGPT 风格界面，支持 Thinking Process 展示、流式输出、会话管
 - **会话记忆**: 使用 NoteTool 自动管理长期记忆和会话上下文
 - **多后端 Session 存储**: 支持 File/Redis/PostgreSQL 三种存储后端
 - **Web 前端**: ChatGPT 风格的 React 前端界面
+- **人工确认机制**: Agent 可主动请求用户补充信息或确认敏感操作
 
 ### 多 Agent 协作
 - **SpawnAgentTool**: 动态创建子 Agent 执行委派任务（类似 Claude Code Task 工具）
@@ -400,6 +401,7 @@ asyncio.run(run_agent())
 |------|------|------|
 | `spawn_agent` | 动态创建子 Agent | `task`, `role`, `context`, `tools`, `max_steps` |
 | `search_knowledge` | RAG 知识库搜索 | `query`, `top_k`, `mode` |
+| `get_user_input` | 请求用户补充信息 | `user_input_fields`, `context` |
 
 ### MCP 工具
 
