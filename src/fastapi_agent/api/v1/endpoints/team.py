@@ -50,6 +50,11 @@ ROLE_CONFIGS = {
         "role": "Data Analyst",
         "instructions": "你是数据分析专家，擅长分析数据、提取洞察并生成报告。",
         "tools": []  # Will get all tools
+    },
+    "vision_specialist": {
+        "role": "Vision Specialist",
+        "instructions": "你是视觉专家，擅长桌面视觉任务。可以截图、理解屏幕内容、点击UI元素、输入文字等。当需要'看'屏幕或进行GUI自动化时，你是最佳选择。",
+        "tools": ["vision_agent", "read", "write"]
     }
 }
 

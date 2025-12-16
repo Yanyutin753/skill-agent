@@ -303,6 +303,35 @@ def get_tools(workspace_dir: str | None = None) -> list[Tool]:
     if settings.ENABLE_RAG:
         tools.append(RAGTool())
 
+    # Add desktop control tools if enabled
+    if settings.ENABLE_DESKTOP_CONTROL:
+        try:
+            # Add VisionAgentTool (main tool for desktop visual tasks)
+            from fastapi_agent.tools.vision_agent_tool import VisionAgentTool
+            tools.append(VisionAgentTool())
+
+            # Optionally add individual desktop tools for direct control
+            from fastapi_agent.tools.desktop_tool import (
+                DesktopScreenshotTool,
+                DesktopClickTool,
+                DesktopTypeTool,
+                DesktopHotkeyTool,
+                DesktopFindTool,
+                DesktopScrollTool,
+                DesktopPressKeyTool,
+            )
+            tools.extend([
+                DesktopScreenshotTool(),
+                DesktopClickTool(),
+                DesktopTypeTool(),
+                DesktopHotkeyTool(),
+                DesktopFindTool(),
+                DesktopScrollTool(),
+                DesktopPressKeyTool(),
+            ])
+        except ImportError as e:
+            print(f"Desktop control tools not available: {e}")
+
     return tools
 
 
@@ -512,6 +541,36 @@ class AgentFactory:
         enable_rag = config.enable_rag if config.enable_rag is not None else self.settings.ENABLE_RAG
         if enable_rag:
             tools.append(RAGTool())
+
+        # Desktop control tools
+        enable_desktop = self.settings.ENABLE_DESKTOP_CONTROL
+        if enable_desktop:
+            try:
+                # Add VisionAgentTool (main tool for desktop visual tasks)
+                from fastapi_agent.tools.vision_agent_tool import VisionAgentTool
+                tools.append(VisionAgentTool())
+
+                # Optionally add individual desktop tools for direct control
+                from fastapi_agent.tools.desktop_tool import (
+                    DesktopScreenshotTool,
+                    DesktopClickTool,
+                    DesktopTypeTool,
+                    DesktopHotkeyTool,
+                    DesktopFindTool,
+                    DesktopScrollTool,
+                    DesktopPressKeyTool,
+                )
+                tools.extend([
+                    DesktopScreenshotTool(),
+                    DesktopClickTool(),
+                    DesktopTypeTool(),
+                    DesktopHotkeyTool(),
+                    DesktopFindTool(),
+                    DesktopScrollTool(),
+                    DesktopPressKeyTool(),
+                ])
+            except ImportError:
+                pass  # Desktop tools not available
 
         return tools
 

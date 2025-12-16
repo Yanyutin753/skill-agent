@@ -9,6 +9,7 @@ class ToolResult(BaseModel):
     success: bool
     content: str = ""
     error: str | None = None
+    image_base64: str | None = None  # Base64 encoded image for multimodal responses
 
 
 class Tool:

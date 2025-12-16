@@ -3,7 +3,7 @@ name = "fastapi-agent"
 version = "0.1.0"
 description = "AI Agent with tool execution capabilities via FastAPI"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.13"
 license = {text = "MIT"}
 authors = [
     {name = "FastAPI Agent", email = "agent@example.com"}
@@ -18,13 +18,17 @@ dependencies = [
     "pyyaml>=6.0.1",
     "python-multipart>=0.0.6",
     "tiktoken>=0.5.0",
-    "mcp>=1.0.0",  # Model Context Protocol SDK
-    "asyncpg>=0.29.0",  # PostgreSQL async driver
-    "pgvector>=0.3.0",  # pgvector Python bindings
-    "pypdf>=4.0.0",  # PDF parsing
-    "openai>=1.0.0",  # For DashScope API (OpenAI compatible)
-    "litellm>=1.50.0",  # Multi-provider LLM support (100+ providers)
-    "prompt-toolkit>=3.0.0",  # CLI interactive REPL
+    "mcp>=1.0.0", # Model Context Protocol SDK
+    "asyncpg>=0.29.0", # PostgreSQL async driver
+    "pgvector>=0.3.0", # pgvector Python bindings
+    "pypdf>=4.0.0", # PDF parsing
+    "openai>=1.0.0", # For DashScope API (OpenAI compatible)
+    "litellm>=1.50.0", # Multi-provider LLM support (100+ providers)
+    "prompt-toolkit>=3.0.0", # CLI interactive REPL
+    "pyautogui>=0.9.54",
+    "pyperclip>=1.11.0",
+    "pyscreeze>=1.0.1",
+    "pillow>=12.0.0",
 ]
 
 [project.scripts]
@@ -41,6 +45,9 @@ dev = [
 ]
 redis = [
     "redis>=5.0.0",  # Redis async client for session storage
+]
+desktop = [
+    "open-interpreter>=0.4.0",  # Desktop control via Open Interpreter
 ]
 
 [build-system]

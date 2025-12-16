@@ -42,6 +42,20 @@ class Settings(BaseSettings):
         description="Model name in format 'provider/model' e.g. openai/gpt-4o, anthropic/claude-3-5-sonnet-20241022"
     )
 
+    # Vision model settings (for multimodal tasks like screenshot analysis)
+    VISION_MODEL: str = Field(
+        default="",
+        description="Vision model for image analysis. If empty, uses LLM_MODEL. Examples: dashscope/qwen-vl-max, openai/gpt-4o"
+    )
+    VISION_API_KEY: str = Field(
+        default="",
+        description="API key for vision model. If empty, uses LLM_API_KEY"
+    )
+    VISION_API_BASE: str = Field(
+        default="",
+        description="API base URL for vision model. If empty, uses LLM_API_BASE"
+    )
+
     # Agent settings
     AGENT_MAX_STEPS: int = Field(default=50, ge=1, le=200)
     AGENT_WORKSPACE_DIR: str = Field(default="./workspace")
@@ -55,6 +69,12 @@ class Settings(BaseSettings):
     MCP_CONFIG_PATH: str = Field(
         default="mcp.json",
         description="Path to MCP configuration file"
+    )
+
+    # Desktop Control settings
+    ENABLE_DESKTOP_CONTROL: bool = Field(
+        default=False,
+        description="Enable desktop control tools (screenshot, click, type, hotkey). Requires open-interpreter."
     )
 
     # RAG / Knowledge Base settings
