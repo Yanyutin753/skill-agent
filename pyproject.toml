@@ -24,7 +24,11 @@ dependencies = [
     "pypdf>=4.0.0",  # PDF parsing
     "openai>=1.0.0",  # For DashScope API (OpenAI compatible)
     "litellm>=1.50.0",  # Multi-provider LLM support (100+ providers)
+    "prompt-toolkit>=3.0.0",  # CLI interactive REPL
 ]
+
+[project.scripts]
+fastapi-agent = "fastapi_agent.cli.main:main"
 
 [project.optional-dependencies]
 dev = [

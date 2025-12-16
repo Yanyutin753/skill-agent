@@ -95,7 +95,8 @@ class LLMClient:
         """Adjust max_tokens to respect provider limits."""
         limit = self._get_max_tokens_limit()
         if requested > limit:
-            logger.warning(
+            # Use debug level to avoid cluttering CLI output
+            logger.debug(
                 f"Requested max_tokens={requested} exceeds {self.model} limit of {limit}. "
                 f"Adjusting to {limit}."
             )
