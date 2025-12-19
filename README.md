@@ -619,9 +619,44 @@ WantedBy=multi-user.target
 sudo systemctl enable fastapi-agent && sudo systemctl start fastapi-agent
 ```
 
-## 日志与追踪
+## 可观测性与追踪
 
-### AgentLogger（单 Agent 日志）
+### Langfuse（推荐）
+
+系统支持 [Langfuse](https://langfuse.com) 作为生产级可观测性解决方案：
+
+```bash
+# .env 配置
+LANGFUSE_ENABLED=true
+LANGFUSE_PUBLIC_KEY="pk-lf-..."
+LANGFUSE_SECRET_KEY="sk-lf-..."
+LANGFUSE_HOST="https://cloud.langfuse.com"  # 或自部署地址
+```
+
+Langfuse 提供：
+
+- **自动 LLM 追踪**: 通过 LiteLLM callback 自动记录所有 LLM 调用
+- **Agent 执行追踪**: 完整的 Agent 执行流程、工具调用、嵌套层级
+- **Token 和成本统计**: 实时 token 使用和成本计算
+- **可视化 Dashboard**: Web 界面查看和分析 traces
+- **采样和过滤**: 支持采样率配置，减少生产环境数据量
+
+配置选项：
+
+| 配置项 | 默认值 | 描述 |
+|--------|--------|------|
+| `LANGFUSE_ENABLED` | `false` | 启用 Langfuse 追踪 |
+| `LANGFUSE_PUBLIC_KEY` | - | Langfuse 公钥 |
+| `LANGFUSE_SECRET_KEY` | - | Langfuse 私钥 |
+| `LANGFUSE_HOST` | `https://cloud.langfuse.com` | Langfuse 服务地址 |
+| `LANGFUSE_SAMPLE_RATE` | `1.0` | 采样率 (0.0-1.0) |
+| `LANGFUSE_FLUSH_INTERVAL` | `5.0` | 数据刷新间隔(秒) |
+
+### 本地日志（Deprecated）
+
+> 当 `LANGFUSE_ENABLED=true` 时，以下本地日志功能被禁用。
+
+#### AgentLogger（单 Agent 日志）
 
 Agent 执行日志保存在 `~/.fastapi-agent/log/`：
 
@@ -630,27 +665,15 @@ ls -lht ~/.fastapi-agent/log/ | head -5
 cat ~/.fastapi-agent/log/agent_run_20251113_223233.log
 ```
 
-### TraceLogger（多 Agent 追踪）
+#### TraceLogger（多 Agent 追踪）
 
 工作流追踪日志保存在 `~/.fastapi-agent/traces/`：
 
 ```bash
-# 列出追踪
 uv run python -m fastapi_agent.utils.trace_viewer list
-
-# 查看详细追踪
 uv run python -m fastapi_agent.utils.trace_viewer view trace_team_20251205_abc123.jsonl
-
-# 可视化工作流
 uv run python -m fastapi_agent.utils.trace_viewer flow trace_dependency_workflow_20251205_xyz789.jsonl
 ```
-
-追踪内容包括：
-- 完整工作流生命周期
-- Agent 启动/结束及嵌套层级
-- Leader 向 Member 的委派记录
-- 任务依赖关系和执行层级
-- Token 使用统计
 
 ## 故障排除
 

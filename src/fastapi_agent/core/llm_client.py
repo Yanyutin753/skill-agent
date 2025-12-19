@@ -14,6 +14,9 @@ logger = logging.getLogger(__name__)
 
 litellm.drop_params = True
 
+from fastapi_agent.core.langfuse_tracing import init_langfuse
+init_langfuse()
+
 import re
 
 CONTENT_FILTER_PATTERNS = [
@@ -178,6 +181,7 @@ class LLMClient:
         system: str | None,
         tools: list[dict[str, Any]] | None,
         max_tokens: int,
+        metadata: dict[str, Any] | None = None,
     ) -> Any:
         """Execute API request via litellm."""
         if system:
@@ -199,6 +203,9 @@ class LLMClient:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
 
+        if metadata:
+            kwargs["metadata"] = metadata
+
         response = await acompletion(**kwargs)
         return response
 
@@ -207,9 +214,16 @@ class LLMClient:
         messages: list[Message],
         tools: list[dict[str, Any]] | None = None,
         max_tokens: int = 16384,
+        metadata: dict[str, Any] | None = None,
     ) -> LLMResponse:
-        """Generate response from LLM."""
-        # Adjust max_tokens to respect provider limits
+        """Generate response from LLM.
+
+        Args:
+            messages: Conversation messages
+            tools: Available tools
+            max_tokens: Maximum tokens in response
+            metadata: Metadata for tracing (e.g., trace_id for Langfuse)
+        """
         max_tokens = self._adjust_max_tokens(max_tokens)
 
         system_message, api_messages = self._convert_messages(messages)
@@ -220,9 +234,9 @@ class LLMClient:
                 config=self.retry_config, on_retry=self.retry_callback
             )
             api_call = retry_decorator(self._make_api_request)
-            response = await api_call(api_messages, system_message, openai_tools, max_tokens)
+            response = await api_call(api_messages, system_message, openai_tools, max_tokens, metadata)
         else:
-            response = await self._make_api_request(api_messages, system_message, openai_tools, max_tokens)
+            response = await self._make_api_request(api_messages, system_message, openai_tools, max_tokens, metadata)
 
         choice = response.choices[0]
         message = choice.message
@@ -271,9 +285,16 @@ class LLMClient:
         messages: list[Message],
         tools: list[dict[str, Any]] | None = None,
         max_tokens: int = 16384,
+        metadata: dict[str, Any] | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
-        """Generate streaming response from LLM."""
-        # Adjust max_tokens to respect provider limits
+        """Generate streaming response from LLM.
+
+        Args:
+            messages: Conversation messages
+            tools: Available tools
+            max_tokens: Maximum tokens in response
+            metadata: Metadata for tracing (e.g., trace_id for Langfuse)
+        """
         max_tokens = self._adjust_max_tokens(max_tokens)
 
         system_message, api_messages = self._convert_messages(messages)
@@ -298,6 +319,9 @@ class LLMClient:
         if openai_tools:
             kwargs["tools"] = openai_tools
             kwargs["tool_choice"] = "auto"
+
+        if metadata:
+            kwargs["metadata"] = metadata
 
         response = await acompletion(**kwargs)
 

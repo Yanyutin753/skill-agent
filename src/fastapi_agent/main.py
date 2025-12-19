@@ -1,5 +1,8 @@
 """FastAPI application for Agent API with best practices architecture."""
 
+import warnings
+warnings.filterwarnings("ignore", message="Pydantic serializer warnings")
+
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 

@@ -127,10 +127,40 @@ class Settings(BaseSettings):
         description="PostgreSQL table name for sessions"
     )
 
-    # Run log settings
+    # Langfuse Observability settings
+    LANGFUSE_ENABLED: bool = Field(
+        default=False,
+        description="Enable Langfuse tracing (replaces local debug logging)"
+    )
+    LANGFUSE_PUBLIC_KEY: str = Field(
+        default="",
+        description="Langfuse public key"
+    )
+    LANGFUSE_SECRET_KEY: str = Field(
+        default="",
+        description="Langfuse secret key"
+    )
+    LANGFUSE_HOST: str = Field(
+        default="https://cloud.langfuse.com",
+        description="Langfuse host URL (cloud or self-hosted)"
+    )
+    LANGFUSE_SAMPLE_RATE: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Sampling rate for traces (0.0-1.0)"
+    )
+    LANGFUSE_FLUSH_INTERVAL: float = Field(
+        default=5.0,
+        ge=1.0,
+        le=60.0,
+        description="Flush interval in seconds"
+    )
+
+    # Legacy run log settings (deprecated when LANGFUSE_ENABLED=true)
     ENABLE_DEBUG_LOGGING: bool = Field(
         default=False,
-        description="Enable debug logging to files (when False, only console output)"
+        description="Enable legacy debug logging to files (ignored when LANGFUSE_ENABLED=true)"
     )
     RUN_LOG_BACKEND: str = Field(
         default="file",

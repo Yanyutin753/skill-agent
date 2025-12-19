@@ -14,7 +14,11 @@ function cleanContent(content: string): string {
   return content
     .replace(/<has_function_call>[A-Za-z0-9.\-\s]*/g, '')
     .replace(/<\/has_function_call>/g, '')
-    .replace(/^\s+/, '');
+    .replace(/^\s+/, '')
+    .replace(/(#{1,6})([^\s#])/g, '$1 $2')
+    .replace(/([^\n])(#{1,6}\s)/g, '$1\n\n$2')
+    .replace(/(\d+\.)\*\*\s*([^*]+)\*\*/g, '$1 **$2**')
+    .replace(/-([^\s\n])/g, '- $1');
 }
 
 export default function Chat() {

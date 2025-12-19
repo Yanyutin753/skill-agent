@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 from typing import Any, AsyncIterator, Optional
 
-from fastapi_agent.core.agent_logger import AgentLogger
+from fastapi_agent.core.langfuse_tracing import get_tracer
 from fastapi_agent.core.llm_client import LLMClient
 from fastapi_agent.core.token_manager import TokenManager
 from fastapi_agent.core.prompt_builder import (
@@ -32,13 +32,15 @@ class Agent:
         tools: list[Tool] | None = None,
         max_steps: int = 50,
         workspace_dir: str = "./workspace",
-        token_limit: int = 120000,  # 120k tokens for claude-3-5-sonnet (200k context)
+        token_limit: int = 120000,
         enable_summarization: bool = True,
         enable_logging: bool = True,
         log_dir: str | None = None,
         name: str | None = None,
         skill_loader: Optional[SkillLoader] = None,
-        tool_output_limit: int = 10000,  # Maximum characters for tool output
+        tool_output_limit: int = 10000,
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None,
     ) -> None:
         """Initialize Agent.
 
@@ -51,33 +53,32 @@ class Agent:
             workspace_dir: 工作空间目录
             token_limit: Token 限制
             enable_summarization: 是否启用自动摘要
-            enable_logging: 是否启用日志
-            log_dir: 已废弃，日志目录现在由 RUN_LOG_DIR 配置
+            enable_logging: 是否启用日志(Langfuse tracing)
+            log_dir: 已废弃
             name: Agent 名称
-            skill_loader: Skill 加载器(用于注入 skills 元数据到系统提示)
-            tool_output_limit: 工具输出最大字符数(防止Token爆炸)
+            skill_loader: Skill 加载器
+            tool_output_limit: 工具输出最大字符数
+            user_id: 用户ID(用于Langfuse追踪)
+            session_id: 会话ID(用于Langfuse追踪)
         """
         self.llm = llm_client
-        self.name = name  # Agent name for team coordination
+        self.name = name or "agent"
         self.tools = {tool.name: tool for tool in (tools or [])}
         self.max_steps = max_steps
         self.workspace_dir = Path(workspace_dir)
         self.skill_loader = skill_loader
         self.tool_output_limit = tool_output_limit
+        self.user_id = user_id
+        self.session_id = session_id
 
-        # Initialize Token Manager
         self.token_manager = TokenManager(
             llm_client=llm_client,
             token_limit=token_limit,
             enable_summarization=enable_summarization,
         )
 
-        # Initialize Agent Logger
         self.enable_logging = enable_logging
-        if enable_logging:
-            self.logger = AgentLogger()
-        else:
-            self.logger = None
+        self.tracer: Optional[LangfuseTracer] = None
 
         # Ensure workspace exists
         self.workspace_dir.mkdir(parents=True, exist_ok=True)
@@ -177,18 +178,27 @@ class Agent:
         total_input_tokens = 0
         total_output_tokens = 0
 
-        if self.logger:
-            log_file = self.logger.start_new_run()
-            print(f"Logging to: {log_file}")
+        if self.enable_logging:
+            self.tracer = get_tracer(
+                name=self.name,
+                user_id=self.user_id,
+                session_id=self.session_id,
+                metadata={"max_steps": self.max_steps},
+            )
+            task = ""
+            if self.messages and len(self.messages) > 1:
+                for msg in reversed(self.messages):
+                    if msg.role == "user":
+                        task = msg.content[:200] if msg.content else ""
+                        break
+            self.tracer.start_trace(task)
 
         while step < self.max_steps:
             step += 1
 
-            # Check and maybe summarize message history to prevent context overflow
             current_tokens = self.token_manager.estimate_tokens(self.messages)
             self.messages = await self.token_manager.maybe_summarize_messages(self.messages)
 
-            # Log step and token usage
             self.execution_logs.append({
                 "type": "step",
                 "step": step,
@@ -197,30 +207,23 @@ class Agent:
                 "token_limit": self.token_manager.token_limit,
             })
 
-            if self.logger:
-                self.logger.log_step(
+            if self.tracer:
+                self.tracer.log_step(
                     step=step,
                     max_steps=self.max_steps,
                     token_count=current_tokens,
                     token_limit=self.token_manager.token_limit,
                 )
 
-            # Get tool schemas
             tool_schemas = [tool.to_schema() for tool in self.tools.values()]
 
-            # Log LLM request
-            if self.logger:
-                self.logger.log_request(
-                    messages=self.messages,
-                    tools=tool_schemas,
-                    token_count=current_tokens,
-                )
+            llm_metadata = self.tracer.get_litellm_metadata() if self.tracer else None
 
-            # Call LLM
             try:
                 response = await self.llm.generate(
                     messages=self.messages,
-                    tools=tool_schemas
+                    tools=tool_schemas,
+                    metadata=llm_metadata,
                 )
             except Exception as e:
                 error_msg = f"LLM call failed: {str(e)}"
@@ -228,8 +231,9 @@ class Agent:
                     "type": "error",
                     "message": error_msg
                 })
-                if self.logger:
-                    self.logger.log_completion(
+                if self.tracer:
+                    self.tracer.end_trace(
+                        success=False,
                         final_response=error_msg,
                         total_steps=step,
                         reason="error",
@@ -239,6 +243,11 @@ class Agent:
             if response.usage:
                 total_input_tokens += response.usage.input_tokens
                 total_output_tokens += response.usage.output_tokens
+                if self.tracer:
+                    self.tracer.log_llm_response(
+                        input_tokens=response.usage.input_tokens,
+                        output_tokens=response.usage.output_tokens,
+                    )
 
             log_entry = {
                 "type": "llm_response",
@@ -251,16 +260,6 @@ class Agent:
             }
             self.execution_logs.append(log_entry)
 
-            if self.logger:
-                self.logger.log_response(
-                    content=response.content,
-                    thinking=response.thinking,
-                    tool_calls=response.tool_calls,
-                    input_tokens=response.usage.input_tokens if response.usage else None,
-                    output_tokens=response.usage.output_tokens if response.usage else None,
-                )
-
-            # Add assistant message
             assistant_msg = Message(
                 role="assistant",
                 content=response.content,
@@ -277,28 +276,26 @@ class Agent:
                     "total_output_tokens": total_output_tokens,
                     "total_tokens": total_input_tokens + total_output_tokens,
                 })
-                if self.logger:
-                    self.logger.log_completion(
+                if self.tracer:
+                    self.tracer.end_trace(
+                        success=True,
                         final_response=response.content,
                         total_steps=step,
                         reason="task_completed",
                     )
                 return response.content, self.execution_logs
 
-            # Execute tool calls
             for tool_call in response.tool_calls:
                 tool_call_id = tool_call.id
                 function_name = tool_call.function.name
                 arguments = tool_call.function.arguments
 
-                # Log tool call
                 self.execution_logs.append({
                     "type": "tool_call",
                     "tool": function_name,
                     "arguments": arguments,
                 })
 
-                # Check if this is a user input request - pause execution
                 if is_user_input_tool_call(function_name):
                     input_fields = parse_user_input_fields(arguments)
                     self._pending_user_input = UserInputRequest(
@@ -315,68 +312,69 @@ class Agent:
                     )
                     self._current_step = step
                     self._paused_tool_call_id = tool_call_id
-                    
-                    # Log the pause
+
                     self.execution_logs.append({
                         "type": "user_input_required",
                         "tool_call_id": tool_call_id,
                         "fields": [f.model_dump() for f in input_fields],
                         "context": arguments.get("context"),
                     })
-                    
-                    if self.logger:
-                        self.logger.log_tool_execution(
-                            tool_name=function_name,
-                            arguments=arguments,
-                            success=True,
-                            content="Waiting for user input",
-                            execution_time=0,
-                        )
-                    
-                    # Return with pending input request
+
                     return "Waiting for user input", self.execution_logs
 
-                # Execute tool and measure execution time
-                start_time = time.time()
-                if function_name not in self.tools:
-                    result = ToolResult(
-                        success=False,
-                        content="",
-                        error=f"Unknown tool: {function_name}",
-                    )
+                if self.tracer:
+                    with self.tracer.span_tool(function_name, arguments) as span:
+                        if function_name not in self.tools:
+                            result = ToolResult(
+                                success=False,
+                                content="",
+                                error=f"Unknown tool: {function_name}",
+                            )
+                        else:
+                            try:
+                                tool = self.tools[function_name]
+                                result = await tool.execute(**arguments)
+                            except Exception as e:
+                                result = ToolResult(
+                                    success=False,
+                                    content="",
+                                    error=f"Tool execution failed: {str(e)}",
+                                )
+                        self.tracer.update_tool_span(
+                            span=span,
+                            success=result.success,
+                            content=result.content if result.success else None,
+                            error=result.error if not result.success else None,
+                        )
                 else:
-                    try:
-                        tool = self.tools[function_name]
-                        result = await tool.execute(**arguments)
-                    except Exception as e:
+                    start_time = time.time()
+                    if function_name not in self.tools:
                         result = ToolResult(
                             success=False,
                             content="",
-                            error=f"Tool execution failed: {str(e)}",
+                            error=f"Unknown tool: {function_name}",
                         )
-                execution_time = time.time() - start_time
+                    else:
+                        try:
+                            tool = self.tools[function_name]
+                            result = await tool.execute(**arguments)
+                        except Exception as e:
+                            result = ToolResult(
+                                success=False,
+                                content="",
+                                error=f"Tool execution failed: {str(e)}",
+                            )
+                    execution_time = time.time() - start_time
 
-                # Log tool result
-                self.execution_logs.append({
-                    "type": "tool_result",
-                    "tool": function_name,
-                    "success": result.success,
-                    "content": result.content if result.success else None,
-                    "error": result.error if not result.success else None,
-                    "execution_time": execution_time,
-                })
+                    self.execution_logs.append({
+                        "type": "tool_result",
+                        "tool": function_name,
+                        "success": result.success,
+                        "content": result.content if result.success else None,
+                        "error": result.error if not result.success else None,
+                        "execution_time": execution_time,
+                    })
 
-                if self.logger:
-                    self.logger.log_tool_execution(
-                        tool_name=function_name,
-                        arguments=arguments,
-                        success=result.success,
-                        content=result.content if result.success else None,
-                        error=result.error if not result.success else None,
-                        execution_time=execution_time,
-                    )
-
-                # Add tool result message (truncate if too long to prevent token explosion)
                 tool_content = result.content if result.success else f"Error: {result.error}"
                 if result.success:
                     tool_content = self._truncate_tool_output(tool_content)
@@ -397,8 +395,9 @@ class Agent:
             "total_output_tokens": total_output_tokens,
             "total_tokens": total_input_tokens + total_output_tokens,
         })
-        if self.logger:
-            self.logger.log_completion(
+        if self.tracer:
+            self.tracer.end_trace(
+                success=False,
                 final_response=error_msg,
                 total_steps=self.max_steps,
                 reason="max_steps_reached",
@@ -480,23 +479,30 @@ class Agent:
                 - data: Event-specific data
         """
         step = 0
+        total_input_tokens = 0
+        total_output_tokens = 0
 
-        # Start new log file for this run
-        if self.logger:
-            log_file = self.logger.start_new_run()
-            yield {
-                "type": "log_file",
-                "data": {"log_file": str(log_file)},
-            }
+        if self.enable_logging:
+            self.tracer = get_tracer(
+                name=self.name,
+                user_id=self.user_id,
+                session_id=self.session_id,
+                metadata={"max_steps": self.max_steps, "streaming": True},
+            )
+            task = ""
+            if self.messages and len(self.messages) > 1:
+                for msg in reversed(self.messages):
+                    if msg.role == "user":
+                        task = msg.content[:200] if msg.content else ""
+                        break
+            self.tracer.start_trace(task)
 
         while step < self.max_steps:
             step += 1
 
-            # Check and maybe summarize message history
             current_tokens = self.token_manager.estimate_tokens(self.messages)
             self.messages = await self.token_manager.maybe_summarize_messages(self.messages)
 
-            # Yield step info
             yield {
                 "type": "step",
                 "data": {
@@ -507,26 +513,27 @@ class Agent:
                 },
             }
 
-            if self.logger:
-                self.logger.log_step(
+            if self.tracer:
+                self.tracer.log_step(
                     step=step,
                     max_steps=self.max_steps,
                     token_count=current_tokens,
                     token_limit=self.token_manager.token_limit,
                 )
 
-            # Get tool schemas
             tool_schemas = [tool.to_schema() for tool in self.tools.values()]
 
-            # Stream LLM response
             thinking_buffer = ""
             content_buffer = ""
             tool_calls_buffer = []
 
+            llm_metadata = self.tracer.get_litellm_metadata() if self.tracer else None
+
             try:
                 async for event in self.llm.generate_stream(
                     messages=self.messages,
-                    tools=tool_schemas
+                    tools=tool_schemas,
+                    metadata=llm_metadata,
                 ):
                     event_type = event.get("type")
 
@@ -560,6 +567,14 @@ class Agent:
 
                     elif event_type == "done":
                         response = event.get("response")
+                        if response and response.usage:
+                            total_input_tokens += response.usage.input_tokens
+                            total_output_tokens += response.usage.output_tokens
+                            if self.tracer:
+                                self.tracer.log_llm_response(
+                                    input_tokens=response.usage.input_tokens,
+                                    output_tokens=response.usage.output_tokens,
+                                )
                         break
 
             except Exception as e:
@@ -568,15 +583,15 @@ class Agent:
                     "type": "error",
                     "data": {"message": error_msg},
                 }
-                if self.logger:
-                    self.logger.log_completion(
+                if self.tracer:
+                    self.tracer.end_trace(
+                        success=False,
                         final_response=error_msg,
                         total_steps=step,
                         reason="error",
                     )
                 return
 
-            # Add assistant message to history
             assistant_msg = Message(
                 role="assistant",
                 content=content_buffer,
@@ -585,10 +600,10 @@ class Agent:
             )
             self.messages.append(assistant_msg)
 
-            # If no tool calls, task is complete
             if not tool_calls_buffer:
-                if self.logger:
-                    self.logger.log_completion(
+                if self.tracer:
+                    self.tracer.end_trace(
+                        success=True,
                         final_response=content_buffer,
                         total_steps=step,
                         reason="completed",
@@ -603,13 +618,11 @@ class Agent:
                 }
                 return
 
-            # Execute tools
             for tool_call in tool_calls_buffer:
                 tool_call_id = tool_call.id
                 function_name = tool_call.function.name
                 arguments = tool_call.function.arguments
 
-                # Check if this is a user input request - pause execution
                 if is_user_input_tool_call(function_name):
                     input_fields = parse_user_input_fields(arguments)
                     self._pending_user_input = UserInputRequest(
@@ -626,8 +639,7 @@ class Agent:
                     )
                     self._current_step = step
                     self._paused_tool_call_id = tool_call_id
-                    
-                    # Yield user input required event
+
                     yield {
                         "type": "user_input_required",
                         "data": {
@@ -636,62 +648,63 @@ class Agent:
                             "context": arguments.get("context"),
                         },
                     }
-                    
-                    if self.logger:
-                        self.logger.log_tool_execution(
-                            tool_name=function_name,
-                            arguments=arguments,
-                            success=True,
-                            content="Waiting for user input",
-                            execution_time=0,
-                        )
-                    
-                    # Return - execution will resume after user provides input
                     return
 
-                # Execute tool and measure time
-                start_time = time.time()
-                if function_name not in self.tools:
-                    result = ToolResult(
-                        success=False,
-                        content="",
-                        error=f"Unknown tool: {function_name}",
-                    )
+                if self.tracer:
+                    with self.tracer.span_tool(function_name, arguments) as span:
+                        if function_name not in self.tools:
+                            result = ToolResult(
+                                success=False,
+                                content="",
+                                error=f"Unknown tool: {function_name}",
+                            )
+                        else:
+                            try:
+                                tool = self.tools[function_name]
+                                result = await tool.execute(**arguments)
+                            except Exception as e:
+                                result = ToolResult(
+                                    success=False,
+                                    content="",
+                                    error=f"Tool execution failed: {str(e)}",
+                                )
+                        self.tracer.update_tool_span(
+                            span=span,
+                            success=result.success,
+                            content=result.content if result.success else None,
+                            error=result.error if not result.success else None,
+                        )
                 else:
-                    try:
-                        tool = self.tools[function_name]
-                        result = await tool.execute(**arguments)
-                    except Exception as e:
+                    start_time = time.time()
+                    if function_name not in self.tools:
                         result = ToolResult(
                             success=False,
                             content="",
-                            error=f"Tool execution failed: {str(e)}",
+                            error=f"Unknown tool: {function_name}",
                         )
-                execution_time = time.time() - start_time
+                    else:
+                        try:
+                            tool = self.tools[function_name]
+                            result = await tool.execute(**arguments)
+                        except Exception as e:
+                            result = ToolResult(
+                                success=False,
+                                content="",
+                                error=f"Tool execution failed: {str(e)}",
+                            )
+                    execution_time = time.time() - start_time
 
-                # Yield tool result
-                yield {
-                    "type": "tool_result",
-                    "data": {
-                        "tool": function_name,
-                        "success": result.success,
-                        "content": result.content if result.success else None,
-                        "error": result.error if not result.success else None,
-                        "execution_time": execution_time,
-                    },
-                }
+                    yield {
+                        "type": "tool_result",
+                        "data": {
+                            "tool": function_name,
+                            "success": result.success,
+                            "content": result.content if result.success else None,
+                            "error": result.error if not result.success else None,
+                            "execution_time": execution_time,
+                        },
+                    }
 
-                if self.logger:
-                    self.logger.log_tool_execution(
-                        tool_name=function_name,
-                        arguments=arguments,
-                        success=result.success,
-                        content=result.content if result.success else None,
-                        error=result.error if not result.success else None,
-                        execution_time=execution_time,
-                    )
-
-                # Add tool result message (truncate if too long to prevent token explosion)
                 tool_content = result.content if result.success else f"Error: {result.error}"
                 if result.success:
                     tool_content = self._truncate_tool_output(tool_content)
@@ -704,10 +717,10 @@ class Agent:
                 )
                 self.messages.append(tool_msg)
 
-        # Max steps reached
         error_msg = f"Task couldn't be completed after {self.max_steps} steps."
-        if self.logger:
-            self.logger.log_completion(
+        if self.tracer:
+            self.tracer.end_trace(
+                success=False,
                 final_response=error_msg,
                 total_steps=self.max_steps,
                 reason="max_steps_reached",

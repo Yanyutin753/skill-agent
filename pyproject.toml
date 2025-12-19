@@ -23,8 +23,9 @@ dependencies = [
     "pgvector>=0.3.0",  # pgvector Python bindings
     "pypdf>=4.0.0",  # PDF parsing
     "openai>=1.0.0",  # For DashScope API (OpenAI compatible)
-    "litellm>=1.50.0",  # Multi-provider LLM support (100+ providers)
+    "litellm>=1.50.0,<1.70.0",  # Multi-provider LLM support (pinned for langfuse 2.x compatibility)
     "prompt-toolkit>=3.0.0",  # CLI interactive REPL
+    "langfuse>=2.0.0,<3.0.0",  # LLM observability and tracing (v2.x for litellm compatibility)
 ]
 
 [project.scripts]
