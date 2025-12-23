@@ -41,6 +41,7 @@ ChatGPT 风格界面，支持 Thinking Process 展示、流式输出、会话管
 - **RAG 知识库**: 混合检索（语义+关键词），基于 PostgreSQL + pgvector
 
 ### 性能与监控
+- **Langfuse 可观测性**: 生产级 LLM 追踪，支持 Agent 执行流程、工具调用、Token 成本统计
 - **执行时间追踪**: 精确记录每个工具的执行时间（毫秒级）
 - **Token 使用监控**: 实时追踪 token 使用情况和百分比
 - **独立日志文件**: 每次运行生成时间戳日志，便于调试和审计
@@ -158,6 +159,12 @@ POSTGRES_USER=postgres
 POSTGRES_PASSWORD=your_password
 POSTGRES_DB=knowledge_base
 DASHSCOPE_API_KEY=your_dashscope_key  # 用于向量嵌入
+
+# Langfuse 可观测性（可选）
+LANGFUSE_ENABLED=true
+LANGFUSE_PUBLIC_KEY=pk-lf-xxx
+LANGFUSE_SECRET_KEY=sk-lf-xxx
+LANGFUSE_HOST=https://cloud.langfuse.com  # 或自部署地址
 ```
 
 ### 4. 配置 MCP（可选）
