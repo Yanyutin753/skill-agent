@@ -1,5 +1,6 @@
 """Core Agent implementation."""
 
+import json
 import time
 from pathlib import Path
 from typing import Any, AsyncIterator, Optional
@@ -13,7 +14,7 @@ from fastapi_agent.core.prompt_builder import (
 )
 from fastapi_agent.schemas.message import Message, UserInputRequest, UserInputField
 from fastapi_agent.skills.skill_loader import SkillLoader
-from fastapi_agent.tools.base import Tool, ToolResult
+from fastapi_agent.tools.base import Tool, ToolResult, validate_tool_arguments
 from fastapi_agent.tools.user_input_tool import (
     GetUserInputTool,
     is_user_input_tool_call,
@@ -41,6 +42,7 @@ class Agent:
         tool_output_limit: int = 10000,
         user_id: Optional[str] = None,
         session_id: Optional[str] = None,
+        project_id: Optional[str] = None,
     ) -> None:
         """Initialize Agent.
 
@@ -58,8 +60,9 @@ class Agent:
             name: Agent 名称
             skill_loader: Skill 加载器
             tool_output_limit: 工具输出最大字符数
-            user_id: 用户ID(用于Langfuse追踪)
-            session_id: 会话ID(用于Langfuse追踪)
+            user_id: 用户ID(用于记忆系统和Langfuse追踪)
+            session_id: 会话ID(用于记忆系统和Langfuse追踪)
+            project_id: 项目ID(用于记忆系统)
         """
         self.llm = llm_client
         self.name = name or "agent"
@@ -70,6 +73,7 @@ class Agent:
         self.tool_output_limit = tool_output_limit
         self.user_id = user_id
         self.session_id = session_id
+        self.project_id = project_id
 
         self.token_manager = TokenManager(
             llm_client=llm_client,
@@ -166,6 +170,14 @@ class Agent:
 
         truncated = content[:self.tool_output_limit]
         return f"{truncated}\n\n[... output truncated, {len(content) - self.tool_output_limit} more characters ...]"
+
+    def _format_tool_result_for_llm(self, result: ToolResult) -> str:
+        """Format tool results as structured JSON for LLM consumption."""
+        payload = result.to_payload()
+        content = payload.get("content")
+        if isinstance(content, str):
+            payload["content"] = self._truncate_tool_output(content)
+        return json.dumps(payload, ensure_ascii=False, default=str)
 
     async def run(self) -> tuple[str, list[dict[str, Any]]]:
         """Execute agent loop until task is complete or max steps reached.
@@ -289,95 +301,120 @@ class Agent:
                 tool_call_id = tool_call.id
                 function_name = tool_call.function.name
                 arguments = tool_call.function.arguments
+                arguments_raw = tool_call.function.arguments_raw
+                parse_error = tool_call.function.parse_error
 
                 self.execution_logs.append({
                     "type": "tool_call",
                     "tool": function_name,
+                    "tool_call_id": tool_call_id,
                     "arguments": arguments,
+                    "arguments_raw": arguments_raw,
+                    "parse_error": parse_error,
                 })
 
-                if is_user_input_tool_call(function_name):
-                    input_fields = parse_user_input_fields(arguments)
-                    self._pending_user_input = UserInputRequest(
-                        tool_call_id=tool_call_id,
-                        fields=[
-                            UserInputField(
-                                field_name=f.field_name,
-                                field_type=f.field_type,
-                                field_description=f.field_description,
-                            )
-                            for f in input_fields
-                        ],
-                        context=arguments.get("context"),
+                tool = self.tools.get(function_name)
+                validation_errors: list[str] = []
+
+                if parse_error:
+                    validation_errors.append(f"Invalid JSON arguments: {parse_error}")
+
+                if tool is None:
+                    result = ToolResult(
+                        success=False,
+                        error=f"Unknown tool: {function_name}",
                     )
-                    self._current_step = step
-                    self._paused_tool_call_id = tool_call_id
+                    execution_time = 0.0
+                else:
+                    if not validation_errors:
+                        if not isinstance(arguments, dict):
+                            validation_errors.append("Arguments must be an object")
+                        else:
+                            validation_errors.extend(validate_tool_arguments(tool.parameters, arguments))
 
-                    self.execution_logs.append({
-                        "type": "user_input_required",
-                        "tool_call_id": tool_call_id,
-                        "fields": [f.model_dump() for f in input_fields],
-                        "context": arguments.get("context"),
-                    })
+                    if validation_errors:
+                        error_data = {"errors": validation_errors}
+                        if arguments_raw:
+                            error_data["arguments_raw"] = arguments_raw
+                        result = ToolResult(
+                            success=False,
+                            error="Invalid tool arguments",
+                            data=error_data,
+                        )
+                        execution_time = 0.0
+                    elif is_user_input_tool_call(function_name):
+                        input_fields = parse_user_input_fields(arguments)
+                        self._pending_user_input = UserInputRequest(
+                            tool_call_id=tool_call_id,
+                            fields=[
+                                UserInputField(
+                                    field_name=f.field_name,
+                                    field_type=f.field_type,
+                                    field_description=f.field_description,
+                                )
+                                for f in input_fields
+                            ],
+                            context=arguments.get("context"),
+                        )
+                        self._current_step = step
+                        self._paused_tool_call_id = tool_call_id
 
-                    return "Waiting for user input", self.execution_logs
+                        self.execution_logs.append({
+                            "type": "user_input_required",
+                            "tool_call_id": tool_call_id,
+                            "fields": [f.model_dump() for f in input_fields],
+                            "context": arguments.get("context"),
+                        })
 
-                if self.tracer:
-                    with self.tracer.span_tool(function_name, arguments) as span:
-                        if function_name not in self.tools:
-                            result = ToolResult(
-                                success=False,
-                                content="",
-                                error=f"Unknown tool: {function_name}",
-                            )
+                        return "Waiting for user input", self.execution_logs
+                    else:
+                        if function_name in ("add_memory", "search_memory", "forget_memory"):
+                            if self.session_id:
+                                arguments["session_id"] = self.session_id
+                            if self.project_id:
+                                arguments["project_id"] = self.project_id
+                            if self.user_id:
+                                arguments["user_id"] = self.user_id
+
+                        start_time = time.time()
+                        if self.tracer:
+                            with self.tracer.span_tool(function_name, arguments) as span:
+                                try:
+                                    result = await tool.execute(**arguments)
+                                except Exception as e:
+                                    result = ToolResult(
+                                        success=False,
+                                        error=f"Tool execution failed: {str(e)}",
+                                    )
+                                self.tracer.update_tool_span(
+                                    span=span,
+                                    success=result.success,
+                                    content=result.content if result.success else None,
+                                    error=result.error if not result.success else None,
+                                )
                         else:
                             try:
-                                tool = self.tools[function_name]
                                 result = await tool.execute(**arguments)
                             except Exception as e:
                                 result = ToolResult(
                                     success=False,
-                                    content="",
                                     error=f"Tool execution failed: {str(e)}",
                                 )
-                        self.tracer.update_tool_span(
-                            span=span,
-                            success=result.success,
-                            content=result.content if result.success else None,
-                            error=result.error if not result.success else None,
-                        )
-                else:
-                    start_time = time.time()
-                    if function_name not in self.tools:
-                        result = ToolResult(
-                            success=False,
-                            content="",
-                            error=f"Unknown tool: {function_name}",
-                        )
-                    else:
-                        try:
-                            tool = self.tools[function_name]
-                            result = await tool.execute(**arguments)
-                        except Exception as e:
-                            result = ToolResult(
-                                success=False,
-                                content="",
-                                error=f"Tool execution failed: {str(e)}",
-                            )
-                    execution_time = time.time() - start_time
+                        execution_time = time.time() - start_time
 
-                    self.execution_logs.append({
-                        "type": "tool_result",
-                        "tool": function_name,
-                        "success": result.success,
-                        "content": result.content if result.success else None,
-                        "error": result.error if not result.success else None,
-                        "execution_time": execution_time,
-                    })
+                self.execution_logs.append({
+                    "type": "tool_result",
+                    "tool": function_name,
+                    "tool_call_id": tool_call_id,
+                    "success": result.success,
+                    "content": result.content,
+                    "data": result.data,
+                    "error": result.error,
+                    "execution_time": execution_time,
+                    "validation_errors": validation_errors or None,
+                })
 
-                tool_content = result.content if result.success else f"Error: {result.error}"
-                if result.success:
-                    tool_content = self._truncate_tool_output(tool_content)
+                tool_content = self._format_tool_result_for_llm(result)
 
                 tool_msg = Message(
                     role="tool",
@@ -433,15 +470,14 @@ class Agent:
                 field.value = field_values[field.field_name]
         
         # Create tool result message with user input
-        import json
         user_input_result = [
             {"name": field.field_name, "value": field.value}
             for field in self._pending_user_input.fields
         ]
-        
+        tool_result = ToolResult(success=True, data={"inputs": user_input_result})
         tool_msg = Message(
             role="tool",
-            content=f"User inputs received: {json.dumps(user_input_result, ensure_ascii=False)}",
+            content=self._format_tool_result_for_llm(tool_result),
             tool_call_id=self._pending_user_input.tool_call_id,
             name=GetUserInputTool.TOOL_NAME,
         )
@@ -561,7 +597,10 @@ class Agent:
                                 "type": "tool_call",
                                 "data": {
                                     "tool": tool_call.function.name,
+                                    "tool_call_id": tool_call.id,
                                     "arguments": tool_call.function.arguments,
+                                    "arguments_raw": tool_call.function.arguments_raw,
+                                    "parse_error": tool_call.function.parse_error,
                                 },
                             }
 
@@ -622,92 +661,116 @@ class Agent:
                 tool_call_id = tool_call.id
                 function_name = tool_call.function.name
                 arguments = tool_call.function.arguments
+                arguments_raw = tool_call.function.arguments_raw
+                parse_error = tool_call.function.parse_error
 
-                if is_user_input_tool_call(function_name):
-                    input_fields = parse_user_input_fields(arguments)
-                    self._pending_user_input = UserInputRequest(
-                        tool_call_id=tool_call_id,
-                        fields=[
-                            UserInputField(
-                                field_name=f.field_name,
-                                field_type=f.field_type,
-                                field_description=f.field_description,
-                            )
-                            for f in input_fields
-                        ],
-                        context=arguments.get("context"),
+                tool = self.tools.get(function_name)
+                validation_errors: list[str] = []
+
+                if parse_error:
+                    validation_errors.append(f"Invalid JSON arguments: {parse_error}")
+
+                if tool is None:
+                    result = ToolResult(
+                        success=False,
+                        error=f"Unknown tool: {function_name}",
                     )
-                    self._current_step = step
-                    self._paused_tool_call_id = tool_call_id
+                    execution_time = 0.0
+                else:
+                    if not validation_errors:
+                        if not isinstance(arguments, dict):
+                            validation_errors.append("Arguments must be an object")
+                        else:
+                            validation_errors.extend(validate_tool_arguments(tool.parameters, arguments))
 
-                    yield {
-                        "type": "user_input_required",
-                        "data": {
-                            "tool_call_id": tool_call_id,
-                            "fields": [f.model_dump() for f in input_fields],
-                            "context": arguments.get("context"),
-                        },
-                    }
-                    return
+                    if validation_errors:
+                        error_data = {"errors": validation_errors}
+                        if arguments_raw:
+                            error_data["arguments_raw"] = arguments_raw
+                        result = ToolResult(
+                            success=False,
+                            error="Invalid tool arguments",
+                            data=error_data,
+                        )
+                        execution_time = 0.0
+                    elif is_user_input_tool_call(function_name):
+                        input_fields = parse_user_input_fields(arguments)
+                        self._pending_user_input = UserInputRequest(
+                            tool_call_id=tool_call_id,
+                            fields=[
+                                UserInputField(
+                                    field_name=f.field_name,
+                                    field_type=f.field_type,
+                                    field_description=f.field_description,
+                                )
+                                for f in input_fields
+                            ],
+                            context=arguments.get("context"),
+                        )
+                        self._current_step = step
+                        self._paused_tool_call_id = tool_call_id
 
-                if self.tracer:
-                    with self.tracer.span_tool(function_name, arguments) as span:
-                        if function_name not in self.tools:
-                            result = ToolResult(
-                                success=False,
-                                content="",
-                                error=f"Unknown tool: {function_name}",
-                            )
+                        yield {
+                            "type": "user_input_required",
+                            "data": {
+                                "tool_call_id": tool_call_id,
+                                "fields": [f.model_dump() for f in input_fields],
+                                "context": arguments.get("context"),
+                            },
+                        }
+                        return
+                    else:
+                        if function_name in ("add_memory", "search_memory", "forget_memory"):
+                            if self.session_id:
+                                arguments["session_id"] = self.session_id
+                            if self.project_id:
+                                arguments["project_id"] = self.project_id
+                            if self.user_id:
+                                arguments["user_id"] = self.user_id
+
+                        start_time = time.time()
+                        if self.tracer:
+                            with self.tracer.span_tool(function_name, arguments) as span:
+                                try:
+                                    result = await tool.execute(**arguments)
+                                except Exception as e:
+                                    result = ToolResult(
+                                        success=False,
+                                        error=f"Tool execution failed: {str(e)}",
+                                    )
+                                self.tracer.update_tool_span(
+                                    span=span,
+                                    success=result.success,
+                                    content=result.content if result.success else None,
+                                    error=result.error if not result.success else None,
+                                )
                         else:
                             try:
-                                tool = self.tools[function_name]
                                 result = await tool.execute(**arguments)
                             except Exception as e:
                                 result = ToolResult(
                                     success=False,
-                                    content="",
                                     error=f"Tool execution failed: {str(e)}",
                                 )
-                        self.tracer.update_tool_span(
-                            span=span,
-                            success=result.success,
-                            content=result.content if result.success else None,
-                            error=result.error if not result.success else None,
-                        )
-                else:
-                    start_time = time.time()
-                    if function_name not in self.tools:
-                        result = ToolResult(
-                            success=False,
-                            content="",
-                            error=f"Unknown tool: {function_name}",
-                        )
-                    else:
-                        try:
-                            tool = self.tools[function_name]
-                            result = await tool.execute(**arguments)
-                        except Exception as e:
-                            result = ToolResult(
-                                success=False,
-                                content="",
-                                error=f"Tool execution failed: {str(e)}",
-                            )
-                    execution_time = time.time() - start_time
+                        execution_time = time.time() - start_time
 
-                    yield {
-                        "type": "tool_result",
-                        "data": {
-                            "tool": function_name,
-                            "success": result.success,
-                            "content": result.content if result.success else None,
-                            "error": result.error if not result.success else None,
-                            "execution_time": execution_time,
-                        },
-                    }
+                yield {
+                    "type": "tool_result",
+                    "data": {
+                        "tool": function_name,
+                        "tool_call_id": tool_call_id,
+                        "success": result.success,
+                        "content": result.content,
+                        "data": result.data,
+                        "error": result.error,
+                        "execution_time": execution_time,
+                        "validation_errors": validation_errors or None,
+                        "arguments_raw": arguments_raw,
+                        "parse_error": parse_error,
+                    },
+                }
 
-                tool_content = result.content if result.success else f"Error: {result.error}"
-                if result.success:
-                    tool_content = self._truncate_tool_output(tool_content)
+                tool_content = self._format_tool_result_for_llm(result)
 
                 tool_msg = Message(
                     role="tool",

@@ -27,6 +27,7 @@ _agent_session_manager: Optional[UnifiedAgentSessionManager] = None
 _team_session_manager: Optional[UnifiedTeamSessionManager] = None
 
 
+
 def get_settings() -> Settings:
     """Get application settings.
 
@@ -246,6 +247,8 @@ async def initialize_session_manager() -> None:
         print("⚠️  Falling back to default file session storage")
 
 
+
+
 def get_agent_session_manager() -> Optional[UnifiedAgentSessionManager]:
     """Get global agent session manager instance.
 
@@ -367,12 +370,14 @@ class AgentFactory:
         self,
         llm_client: LLMClient,
         config: Optional["AgentConfig"] = None,
+        session_id: Optional[str] = None,
     ) -> Agent:
         """Create agent with dynamic configuration.
 
         Args:
             llm_client: LLM client instance
             config: Dynamic agent configuration (optional)
+            session_id: Session ID for memory context (optional)
 
         Returns:
             Configured agent instance
@@ -418,6 +423,14 @@ class AgentFactory:
         else:
             system_prompt = system_prompt.replace("{SKILLS_METADATA}", "")
 
+        # Inject personalization settings if user_id provided
+        if config.user_id:
+            from fastapi_agent.api.v1.endpoints.personalization import get_user_personalization
+            personalization = get_user_personalization(config.user_id)
+            if personalization:
+                personalization_prompt = personalization.to_prompt()
+                system_prompt = f"{system_prompt}\n\n## 用户个性化设置\n{personalization_prompt}"
+
         # Create agent
         return Agent(
             llm_client=llm_client,
@@ -427,6 +440,9 @@ class AgentFactory:
             workspace_dir=str(workspace_path),
             token_limit=token_limit,
             enable_summarization=enable_summarization,
+            user_id=config.user_id,
+            session_id=session_id,
+            project_id=config.project_id,
         )
 
     async def _build_tools(self, config: "AgentConfig", workspace_dir: str) -> list[Tool]:

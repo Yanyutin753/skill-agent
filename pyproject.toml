@@ -26,6 +26,7 @@ dependencies = [
     "litellm>=1.50.0,<1.70.0",  # Multi-provider LLM support (pinned for langfuse 2.x compatibility)
     "prompt-toolkit>=3.0.0",  # CLI interactive REPL
     "langfuse>=2.0.0,<3.0.0",  # LLM observability and tracing (v2.x for litellm compatibility)
+    "aiofiles>=23.0.0",  # Async file operations
 ]
 
 [project.scripts]
@@ -42,6 +43,9 @@ dev = [
 ]
 redis = [
     "redis>=5.0.0",  # Redis async client for session storage
+]
+milvus = [
+    "pymilvus>=2.4.0",  # Milvus vector database client
 ]
 
 [build-system]

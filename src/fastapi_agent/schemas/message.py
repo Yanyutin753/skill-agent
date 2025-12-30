@@ -7,7 +7,9 @@ from pydantic import BaseModel, Field
 class FunctionCall(BaseModel):
     """Function call within a tool call."""
     name: str
-    arguments: dict[str, Any]
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    arguments_raw: Optional[str] = Field(default=None, description="Raw arguments string when parsing fails")
+    parse_error: Optional[str] = Field(default=None, description="Parsing error message for arguments")
 
 
 class ToolCall(BaseModel):
@@ -106,6 +108,16 @@ class AgentConfig(BaseModel):
         ge=1,
         le=5,
         description="Maximum nesting depth for spawned agents (1-5)"
+    )
+
+    # Memory context identifiers
+    user_id: Optional[str] = Field(
+        None,
+        description="User ID for user-level memory scope"
+    )
+    project_id: Optional[str] = Field(
+        None,
+        description="Project ID for project-level memory scope"
     )
 
 

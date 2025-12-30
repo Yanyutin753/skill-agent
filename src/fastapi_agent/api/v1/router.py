@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from fastapi_agent.api.v1.endpoints import agent, health, knowledge, team, tools, trace
+from fastapi_agent.api.v1.endpoints import agent, health, knowledge, personalization, team, tools, trace
 
 api_router = APIRouter()
 
@@ -12,6 +12,7 @@ api_router.include_router(team.router, tags=["team"])
 api_router.include_router(tools.router, prefix="/tools", tags=["tools"])
 api_router.include_router(knowledge.router, prefix="/knowledge", tags=["knowledge"])
 api_router.include_router(trace.router, prefix="/trace", tags=["trace"])
+api_router.include_router(personalization.router, prefix="/personalization", tags=["personalization"])
 
 # Health endpoint at root level (not versioned)
 health_router = APIRouter()

@@ -106,10 +106,12 @@ class MCPTool(Tool):
 
             # Check for error status (official SDK: result.isError)
             is_error = result.isError if hasattr(result, 'isError') else False
+            structured_content = getattr(result, "structuredContent", None)
 
             return ToolResult(
                 success=not is_error,
                 content=content_str,
+                data=structured_content,
                 error=None if not is_error else "Tool returned error"
             )
         except Exception as e:

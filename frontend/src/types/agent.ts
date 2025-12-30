@@ -1,11 +1,21 @@
 // Agent API request and response types
 
+export interface AgentConfig {
+  user_id?: string;
+  workspace_dir?: string;
+  max_steps?: number;
+  system_prompt?: string;
+  enable_skills?: boolean;
+  enable_rag?: boolean;
+}
+
 export interface AgentRequest {
   message: string;
   workspace_dir?: string;
   max_steps?: number;
   session_id?: string;
   num_history_runs?: number;
+  config?: AgentConfig;
 }
 
 export interface UserInputField {

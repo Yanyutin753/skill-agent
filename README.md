@@ -30,9 +30,14 @@ ChatGPT 风格界面，支持 Thinking Process 展示、流式输出、会话管
 - **MCP 集成**: 支持 Model Context Protocol，扩展外部工具能力
 - **Skills 系统**: 内置专业 Skills，提供领域专家级指导
 - **流式输出**: 支持 Server-Sent Events (SSE) 实时流式响应
-- **会话记忆**: 使用 NoteTool 自动管理长期记忆和会话上下文
+- **记忆系统**: 三层记忆架构，支持语义检索（pgvector）
+  - User 记忆：用户级，跨项目持久化（用户偏好、习惯）
+  - Project 记忆：项目级，跨会话持久化（项目架构、决策）
+  - Session 记忆：会话级，会话结束时自动清理（临时上下文）
+  - 可扩展向量存储：VectorStore 抽象层支持 PGVector/Milvus 等
 - **多后端 Session 存储**: 支持 File/Redis/PostgreSQL 三种存储后端
 - **Web 前端**: ChatGPT 风格的 React 前端界面
+- **个性化设置**: 用户偏好配置，支持风格预设、角色定义、技术偏好
 - **人工确认机制**: Agent 可主动请求用户补充信息或确认敏感操作
 
 ### 多 Agent 协作
@@ -78,9 +83,19 @@ skill-agent/
 │       │   ├── base.py         # 工具基类
 │       │   ├── file_tools.py   # 文件操作
 │       │   ├── bash_tool.py    # Bash 执行
-│       │   ├── note_tool.py    # 会话记忆管理
+│       │   ├── note_tool.py    # 会话记忆管理（旧版）
+│       │   ├── memory_tool.py  # 统一记忆工具（新版）
 │       │   ├── spawn_agent_tool.py # 子 Agent 动态创建
 │       │   └── rag_tool.py     # RAG 知识库搜索
+│       ├── memory/             # 记忆系统
+│       │   ├── models.py       # Document/Memory 数据模型
+│       │   ├── vector_store.py # VectorStore 抽象接口
+│       │   ├── pgvector_store.py # PGVector 实现
+│       │   ├── milvus_store.py # Milvus 实现
+│       │   ├── storage.py      # MemoryStorage 抽象
+│       │   ├── file_storage.py # 文件存储降级方案
+│       │   ├── migration.py    # 数据迁移工具
+│       │   └── manager.py      # MemoryManager 业务层
 │       ├── rag/                # RAG 知识库
 │       │   ├── database.py     # PostgreSQL + pgvector
 │       │   ├── embedding_service.py # 向量嵌入服务
@@ -120,6 +135,12 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 
 ```bash
 uv sync
+
+# 可选：安装 Milvus 支持（替代 pgvector）
+uv sync --extra milvus
+
+# 可选：安装 Redis 支持（Session 存储）
+uv sync --extra redis
 ```
 
 ### 3. 配置环境变量
@@ -151,6 +172,20 @@ SPAWN_AGENT_TOKEN_LIMIT=50000
 # Session 管理
 ENABLE_SESSION=true
 SESSION_BACKEND=file         # file, redis, postgres
+
+# 记忆系统
+ENABLE_MEMORY=true
+MEMORY_BACKEND=postgres      # postgres, file
+MEMORY_TABLE_NAME=memories
+MEMORY_DEFAULT_TOP_K=5
+MEMORY_SEMANTIC_WEIGHT=0.7
+VECTOR_STORE_TYPE=pgvector   # pgvector, milvus
+VECTOR_DIMENSION=1024
+
+# Milvus 配置（当 VECTOR_STORE_TYPE=milvus 时）
+MILVUS_URI=http://localhost:19530
+MILVUS_TOKEN=              # 可选，Milvus 认证 token
+MILVUS_COLLECTION=memories
 
 # RAG 知识库（需要 PostgreSQL + pgvector）
 POSTGRES_HOST=localhost
@@ -399,8 +434,9 @@ asyncio.run(run_agent())
 | `edit_file` | 编辑文件（字符串替换）| `path`, `old_str`, `new_str` |
 | `bash` | 执行 Bash 命令 | `command`, `timeout` |
 | `get_skill` | 加载 Skill 专家指导 | `skill_name` |
-| `session_note` | 存储会话记忆 | `note` |
-| `recall_note` | 查询会话记忆 | `query` |
+| `add_memory` | 记录记忆（三层作用域） | `content`, `category`, `scope`, `importance` |
+| `search_memory` | 搜索记忆（语义/关键词/混合） | `query`, `top_k`, `mode`, `scope` |
+| `forget_memory` | 删除记忆 | `memory_id`, `category`, `scope` |
 
 ### 高级工具
 
@@ -648,6 +684,12 @@ Langfuse 提供：
 - **可视化 Dashboard**: Web 界面查看和分析 traces
 - **采样和过滤**: 支持采样率配置，减少生产环境数据量
 
+调试建议：
+
+- **调试入口**: 前端调试控制台已移除，建议使用 Langfuse Dashboard 查看 traces
+- **排查路径**: 在 Langfuse 中按时间/任务描述定位 run，查看工具调用、错误、Token 使用情况
+- **无 Langfuse 时**: 可暂时使用下方本地日志（Deprecated）
+
 配置选项：
 
 | 配置项 | 默认值 | 描述 |
@@ -680,6 +722,76 @@ cat ~/.fastapi-agent/log/agent_run_20251113_223233.log
 uv run python -m fastapi_agent.utils.trace_viewer list
 uv run python -m fastapi_agent.utils.trace_viewer view trace_team_20251205_abc123.jsonl
 uv run python -m fastapi_agent.utils.trace_viewer flow trace_dependency_workflow_20251205_xyz789.jsonl
+```
+
+#### 记忆系统
+
+三层记忆架构（参考 ChatGPT 设计）：
+
+| Scope | 说明 | 生命周期 | 适用场景 |
+|-------|------|----------|----------|
+| `user` | 用户级记忆 | 跨项目持久化 | 用户偏好、编程习惯、技术栈选择 |
+| `project` | 项目级记忆 | 跨会话持久化 | 项目架构、技术决策、团队约定 |
+| `session` | 会话级记忆 | 会话结束时清理 | 临时上下文、当前任务相关信息 |
+
+API 请求中传递上下文标识符：
+
+```json
+{
+  "message": "记住我喜欢使用 TypeScript",
+  "session_id": "session-123",
+  "config": {
+    "user_id": "user-001",
+    "project_id": "project-abc"
+  }
+}
+```
+
+Agent 调用 memory 工具时会自动注入这些标识符。
+
+#### 个性化设置 API
+
+用户个性化设置通过 user-level 记忆持久化存储：
+
+```bash
+# 获取用户设置
+GET /api/v1/personalization/settings/{user_id}
+
+# 保存用户设置
+POST /api/v1/personalization/settings
+{
+  "user_id": "user-001",
+  "style": {
+    "tone": "professional",
+    "verbosity": "balanced",
+    "language": "zh"
+  },
+  "profile": {
+    "name": "开发者",
+    "role": "developer",
+    "expertise_level": "intermediate"
+  },
+  "tech": {
+    "preferred_languages": ["TypeScript", "Python"],
+    "preferred_frameworks": ["React", "FastAPI"]
+  },
+  "custom_instructions": "回复时先给出结论再解释"
+}
+
+# 获取预设选项
+GET /api/v1/personalization/presets
+```
+
+前端点击侧边栏用户头像即可打开个性化设置面板。
+
+#### 记忆数据迁移
+
+从旧版 Note 系统迁移到新版 Memory 系统：
+
+```bash
+uv run python -m fastapi_agent.memory.migration migrate [notes_file]
+uv run python -m fastapi_agent.memory.migration export [output_file]
+uv run python -m fastapi_agent.memory.migration import <input_file>
 ```
 
 ## 故障排除

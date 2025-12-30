@@ -94,7 +94,7 @@ When using the search_knowledge tool:
                 formatted_results
             )
 
-            return ToolResult(success=True, content=content)
+            return ToolResult(success=True, content=content, data=results)
 
         except Exception as e:
             return ToolResult(

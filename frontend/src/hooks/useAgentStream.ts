@@ -13,7 +13,7 @@ export function useAgentStream() {
   const sessionStore = useSessionStore();
 
   const sendMessage = useCallback(
-    async (content: string, max_steps?: number) => {
+    async (content: string, options?: { max_steps?: number; user_id?: string }) => {
       const currentSession = sessionStore.getCurrentSession();
       if (!currentSession) {
         console.error('No active session');
@@ -36,9 +36,10 @@ export function useAgentStream() {
       // Prepare request with session_id for multi-turn conversation
       const request: AgentRequest = {
         message: content,
-        max_steps: max_steps || 150,
+        max_steps: options?.max_steps || 150,
         session_id: currentSession.id,
         num_history_runs: 3,
+        config: options?.user_id ? { user_id: options.user_id } : undefined,
       };
 
       try {

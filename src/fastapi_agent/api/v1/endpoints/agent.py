@@ -136,7 +136,7 @@ async def run_agent(
             config.max_steps = request.max_steps
 
         # Create agent with dynamic configuration
-        agent = await agent_factory.create_agent(llm_client, config)
+        agent = await agent_factory.create_agent(llm_client, config, session_id=request.session_id)
 
         # Load history context if session_id provided
         if request.session_id and session_manager:
@@ -267,7 +267,7 @@ async def run_agent_stream(
                 config.max_steps = request.max_steps
 
             # Create agent with dynamic configuration
-            agent = await agent_factory.create_agent(llm_client, config)
+            agent = await agent_factory.create_agent(llm_client, config, session_id=request.session_id)
 
             # Load history context if session_id provided
             if request.session_id and session_manager:

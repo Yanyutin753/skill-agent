@@ -141,12 +141,11 @@ class FunctionTool(Tool):
             # Handle different return types
             if isinstance(result, ToolResult):
                 return result
-            elif isinstance(result, str):
+            if isinstance(result, (dict, list)):
+                return ToolResult(success=True, data=result)
+            if isinstance(result, str):
                 return ToolResult(success=True, content=result)
-            elif isinstance(result, dict):
-                return ToolResult(success=True, content=str(result))
-            else:
-                return ToolResult(success=True, content=str(result))
+            return ToolResult(success=True, content=str(result))
 
         except Exception as e:
             return ToolResult(success=False, error=str(e))

@@ -127,6 +127,53 @@ class Settings(BaseSettings):
         description="PostgreSQL table name for sessions"
     )
 
+    # Memory system settings
+    ENABLE_MEMORY: bool = Field(
+        default=True,
+        description="Enable memory system for persistent and session memories"
+    )
+    MEMORY_BACKEND: str = Field(
+        default="postgres",
+        description="Memory storage backend: 'postgres' or 'file'"
+    )
+    MEMORY_TABLE_NAME: str = Field(
+        default="memories",
+        description="PostgreSQL table name for memories"
+    )
+    MEMORY_DEFAULT_TOP_K: int = Field(
+        default=5,
+        ge=1,
+        le=50,
+        description="Default number of memories to return in search"
+    )
+    MEMORY_SEMANTIC_WEIGHT: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        description="Weight for semantic search in hybrid mode"
+    )
+    VECTOR_STORE_TYPE: str = Field(
+        default="pgvector",
+        description="Vector store type: 'pgvector', 'milvus', etc."
+    )
+    VECTOR_DIMENSION: int = Field(
+        default=1024,
+        description="Vector embedding dimension"
+    )
+
+    MILVUS_URI: str = Field(
+        default="http://localhost:19530",
+        description="Milvus server URI"
+    )
+    MILVUS_TOKEN: str = Field(
+        default="",
+        description="Milvus authentication token"
+    )
+    MILVUS_COLLECTION: str = Field(
+        default="memories",
+        description="Milvus collection name"
+    )
+
     # Langfuse Observability settings
     LANGFUSE_ENABLED: bool = Field(
         default=False,

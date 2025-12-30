@@ -1,13 +1,16 @@
 // Simple MVP Chat Page
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Send, Loader2, Trash2, Plus, Bot, User, Database, Bug } from 'lucide-react';
+import { Send, Loader2, Trash2, Plus, Bot, User, Database, Settings } from 'lucide-react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useChatStore } from '@/stores/chatStore';
 import { useAgentStream } from '@/hooks/useAgentStream';
 import UserInputForm from '@/components/UserInputForm';
+import PersonalizationModal from '@/components/PersonalizationModal';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+
+const USER_ID = 'default-user';
 
 function cleanContent(content: string): string {
   if (!content) return content;
@@ -23,6 +26,7 @@ function cleanContent(content: string): string {
 
 export default function Chat() {
   const [input, setInput] = useState('');
+  const [showPersonalization, setShowPersonalization] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -44,7 +48,7 @@ export default function Chat() {
     const inputSummary = Object.entries(values)
       .map(([k, v]) => `${k}: ${v}`)
       .join(', ');
-    await sendMessage(`[用户输入] ${inputSummary}`);
+    await sendMessage(`[用户输入] ${inputSummary}`, { user_id: USER_ID });
   };
 
   const handleUserInputCancel = () => {
@@ -76,7 +80,7 @@ export default function Chat() {
     const message = input.trim();
     setInput('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
-    await sendMessage(message);
+    await sendMessage(message, { user_id: USER_ID });
   };
 
   const allMessages = useMemo(() => {
@@ -145,26 +149,26 @@ export default function Chat() {
             <div className="font-medium">知识库</div>
           </Link>
 
-          {/* Debug Console Link */}
-          <Link
-            to="/debug"
-            className="flex items-center gap-3 px-3 py-3 rounded-md hover:bg-[var(--bg-sidebar-hover)] cursor-pointer transition-colors text-sm"
-          >
-            <div className="w-8 h-8 rounded bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center">
-              <Bug className="w-4 h-4 text-white" />
-            </div>
-            <div className="font-medium">调试控制台</div>
-          </Link>
-
           {/* User Profile */}
-          <div className="flex items-center gap-3 px-3 py-3 rounded-md hover:bg-[var(--bg-sidebar-hover)] cursor-pointer transition-colors">
+          <div
+            onClick={() => setShowPersonalization(true)}
+            className="flex items-center gap-3 px-3 py-3 rounded-md hover:bg-[var(--bg-sidebar-hover)] cursor-pointer transition-colors group"
+          >
             <div className="w-8 h-8 rounded bg-green-700 flex items-center justify-center text-white font-medium text-xs">
               U
             </div>
-            <div className="text-sm font-medium">User</div>
+            <div className="flex-1 text-sm font-medium">User</div>
+            <Settings className="w-4 h-4 text-[var(--text-sidebar-secondary)] opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
         </div>
       </div>
+
+      {/* Personalization Modal */}
+      <PersonalizationModal
+        isOpen={showPersonalization}
+        onClose={() => setShowPersonalization(false)}
+        userId={USER_ID}
+      />
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col relative min-w-0">

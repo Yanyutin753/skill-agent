@@ -247,10 +247,14 @@ class LLMClient:
         if message.tool_calls:
             for tc in message.tool_calls:
                 arguments = tc.function.arguments
+                arguments_raw = None
+                parse_error = None
                 if isinstance(arguments, str):
+                    arguments_raw = arguments
                     try:
                         arguments = json.loads(arguments)
-                    except json.JSONDecodeError:
+                    except json.JSONDecodeError as e:
+                        parse_error = str(e)
                         arguments = {}
 
                 tool_calls.append(
@@ -260,6 +264,8 @@ class LLMClient:
                         function=FunctionCall(
                             name=tc.function.name,
                             arguments=arguments,
+                            arguments_raw=arguments_raw,
+                            parse_error=parse_error,
                         ),
                     )
                 )
@@ -368,10 +374,13 @@ class LLMClient:
             if finish_reason:
                 for idx in sorted(current_tool_calls.keys()):
                     tc_data = current_tool_calls[idx]
+                    arguments_raw = tc_data["arguments"]
+                    parse_error = None
                     try:
-                        arguments = json.loads(tc_data["arguments"])
-                    except json.JSONDecodeError:
+                        arguments = json.loads(arguments_raw)
+                    except json.JSONDecodeError as e:
                         arguments = {}
+                        parse_error = str(e)
 
                     tool_call = ToolCall(
                         id=tc_data["id"],
@@ -379,6 +388,8 @@ class LLMClient:
                         function=FunctionCall(
                             name=tc_data["name"],
                             arguments=arguments,
+                            arguments_raw=arguments_raw if parse_error else None,
+                            parse_error=parse_error,
                         ),
                     )
                     tool_calls.append(tool_call)

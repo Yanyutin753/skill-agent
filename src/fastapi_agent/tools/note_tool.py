@@ -177,6 +177,7 @@ class RecallNoteTool(Tool):
                 return ToolResult(
                     success=True,
                     content="尚未记录任何笔记。",
+                    data=[],
                 )
 
             notes = json.loads(self.memory_file.read_text(encoding='utf-8'))
@@ -185,6 +186,7 @@ class RecallNoteTool(Tool):
                 return ToolResult(
                     success=True,
                     content="尚未记录任何笔记。",
+                    data=[],
                 )
 
             # 如果指定了分类则过滤
@@ -194,6 +196,7 @@ class RecallNoteTool(Tool):
                     return ToolResult(
                         success=True,
                         content=f"未找到分类为 '{category}' 的笔记",
+                        data=[],
                     )
 
             # 格式化笔记用于显示
@@ -208,7 +211,7 @@ class RecallNoteTool(Tool):
 
             result = "已记录的笔记:\n" + "\n".join(formatted)
 
-            return ToolResult(success=True, content=result)
+            return ToolResult(success=True, content=result, data=notes)
 
         except Exception as e:
             return ToolResult(
