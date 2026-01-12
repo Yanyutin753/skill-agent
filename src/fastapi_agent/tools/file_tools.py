@@ -1,7 +1,19 @@
-"""File operation tools."""
+"""File operation tools.
 
+Provides deepagents-style filesystem tools:
+- read_file: Read file contents with line numbers
+- write_file: Create or overwrite files
+- edit_file: Exact string replacement with optional global replace
+- ls: List directory contents with metadata
+- glob: Find files matching patterns
+- grep: Search file contents with regex support
+"""
+
+import re
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+
 from .base import Tool, ToolResult
 
 
@@ -146,9 +158,8 @@ class EditTool(Tool):
     @property
     def description(self) -> str:
         return (
-            "Perform exact string replacement in a file. The old_str must match exactly "
-            "and appear uniquely in the file. Read the file first before editing. "
-            "Preserve exact indentation from the source."
+            "Perform exact string replacement in a file. By default, old_str must be unique. "
+            "Set replace_all=true to replace all occurrences. Read the file first before editing."
         )
 
     @property
@@ -162,17 +173,23 @@ class EditTool(Tool):
                 },
                 "old_str": {
                     "type": "string",
-                    "description": "Exact string to find and replace (must be unique in file)",
+                    "description": "Exact string to find and replace",
                 },
                 "new_str": {
                     "type": "string",
                     "description": "Replacement string",
                 },
+                "replace_all": {
+                    "type": "boolean",
+                    "description": "Replace all occurrences (default: false, requires unique match)",
+                },
             },
             "required": ["path", "old_str", "new_str"],
         }
 
-    async def execute(self, path: str, old_str: str, new_str: str) -> ToolResult:
+    async def execute(
+        self, path: str, old_str: str, new_str: str, replace_all: bool = False
+    ) -> ToolResult:
         """Execute edit file."""
         try:
             file_path = Path(path)
@@ -187,17 +204,267 @@ class EditTool(Tool):
                 )
 
             content = file_path.read_text(encoding="utf-8")
+            count = content.count(old_str)
 
-            if old_str not in content:
+            if count == 0:
                 return ToolResult(
                     success=False,
                     content="",
                     error=f"Text not found in file: {old_str[:100]}...",
                 )
 
+            if count > 1 and not replace_all:
+                return ToolResult(
+                    success=False,
+                    content="",
+                    error=f"Found {count} matches. Set replace_all=true to replace all, or provide more context for unique match.",
+                )
+
             new_content = content.replace(old_str, new_str)
             file_path.write_text(new_content, encoding="utf-8")
 
-            return ToolResult(success=True, content=f"Successfully edited {file_path}")
+            msg = f"Successfully edited {file_path}"
+            if count > 1:
+                msg += f" ({count} replacements)"
+            return ToolResult(success=True, content=msg)
+        except Exception as e:
+            return ToolResult(success=False, content="", error=str(e))
+
+
+class ListDirTool(Tool):
+    """List directory contents with metadata."""
+
+    def __init__(self, workspace_dir: str = "."):
+        self.workspace_dir = Path(workspace_dir).absolute()
+
+    @property
+    def name(self) -> str:
+        return "ls"
+
+    @property
+    def description(self) -> str:
+        return "List files and directories with size and modification time."
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Directory path (default: current workspace)",
+                },
+                "recursive": {
+                    "type": "boolean",
+                    "description": "List subdirectories recursively (default: false)",
+                },
+            },
+            "required": [],
+        }
+
+    async def execute(self, path: str = ".", recursive: bool = False) -> ToolResult:
+        try:
+            dir_path = Path(path)
+            if not dir_path.is_absolute():
+                dir_path = self.workspace_dir / dir_path
+
+            if not dir_path.exists():
+                return ToolResult(success=False, content="", error=f"Directory not found: {path}")
+
+            if not dir_path.is_dir():
+                return ToolResult(success=False, content="", error=f"Not a directory: {path}")
+
+            entries = []
+            pattern = "**/*" if recursive else "*"
+
+            for item in sorted(dir_path.glob(pattern)):
+                try:
+                    stat = item.stat()
+                    size = stat.st_size
+                    mtime = datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M")
+                    rel_path = item.relative_to(dir_path)
+                    type_indicator = "d" if item.is_dir() else "f"
+                    size_str = self._format_size(size) if item.is_file() else "-"
+                    entries.append(f"{type_indicator} {size_str:>8} {mtime} {rel_path}")
+                except (OSError, ValueError):
+                    continue
+
+            if not entries:
+                return ToolResult(success=True, content="(empty directory)")
+
+            return ToolResult(success=True, content="\n".join(entries))
+        except Exception as e:
+            return ToolResult(success=False, content="", error=str(e))
+
+    def _format_size(self, size: int) -> str:
+        size_f = float(size)
+        for unit in ["B", "KB", "MB", "GB"]:
+            if size_f < 1024:
+                return f"{size_f:.0f}{unit}" if unit == "B" else f"{size_f:.1f}{unit}"
+            size_f /= 1024
+        return f"{size_f:.1f}TB"
+
+
+class GlobTool(Tool):
+    """Find files matching glob pattern."""
+
+    def __init__(self, workspace_dir: str = "."):
+        self.workspace_dir = Path(workspace_dir).absolute()
+
+    @property
+    def name(self) -> str:
+        return "glob"
+
+    @property
+    def description(self) -> str:
+        return "Find files matching glob pattern (e.g., **/*.py, src/**/*.md, *.txt)"
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "pattern": {
+                    "type": "string",
+                    "description": "Glob pattern to match files",
+                },
+                "path": {
+                    "type": "string",
+                    "description": "Base directory for search (default: workspace)",
+                },
+            },
+            "required": ["pattern"],
+        }
+
+    async def execute(self, pattern: str, path: str = ".") -> ToolResult:
+        try:
+            base_path = Path(path)
+            if not base_path.is_absolute():
+                base_path = self.workspace_dir / base_path
+
+            if not base_path.exists():
+                return ToolResult(success=False, content="", error=f"Path not found: {path}")
+
+            matches = sorted(base_path.glob(pattern))
+            if not matches:
+                return ToolResult(success=True, content=f"No files matching: {pattern}")
+
+            results = [str(m.relative_to(base_path)) for m in matches[:500]]
+            output = "\n".join(results)
+            if len(matches) > 500:
+                output += f"\n... and {len(matches) - 500} more"
+
+            return ToolResult(success=True, content=output)
+        except Exception as e:
+            return ToolResult(success=False, content="", error=str(e))
+
+
+class GrepTool(Tool):
+    """Search file contents with regex."""
+
+    def __init__(self, workspace_dir: str = "."):
+        self.workspace_dir = Path(workspace_dir).absolute()
+
+    @property
+    def name(self) -> str:
+        return "grep"
+
+    @property
+    def description(self) -> str:
+        return "Search for pattern in files. Returns matching lines with file path and line number."
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "pattern": {
+                    "type": "string",
+                    "description": "Search pattern (regex supported)",
+                },
+                "path": {
+                    "type": "string",
+                    "description": "File or directory to search (default: workspace)",
+                },
+                "include": {
+                    "type": "string",
+                    "description": "File pattern to include (e.g., *.py, *.md)",
+                },
+                "context": {
+                    "type": "integer",
+                    "description": "Lines of context around each match (default: 0)",
+                },
+            },
+            "required": ["pattern"],
+        }
+
+    async def execute(
+        self,
+        pattern: str,
+        path: str = ".",
+        include: str | None = None,
+        context: int = 0,
+    ) -> ToolResult:
+        try:
+            search_path = Path(path)
+            if not search_path.is_absolute():
+                search_path = self.workspace_dir / search_path
+
+            if not search_path.exists():
+                return ToolResult(success=False, content="", error=f"Path not found: {path}")
+
+            try:
+                regex = re.compile(pattern, re.IGNORECASE)
+            except re.error as e:
+                return ToolResult(success=False, content="", error=f"Invalid regex: {e}")
+
+            results = []
+            files_to_search = []
+
+            if search_path.is_file():
+                files_to_search = [search_path]
+            else:
+                glob_pattern = include or "*"
+                if "**" not in glob_pattern:
+                    glob_pattern = f"**/{glob_pattern}"
+                files_to_search = [f for f in search_path.glob(glob_pattern) if f.is_file()]
+
+            max_results = 100
+            for file_path in files_to_search:
+                if len(results) >= max_results:
+                    break
+
+                try:
+                    content = file_path.read_text(encoding="utf-8", errors="ignore")
+                    lines = content.split("\n")
+
+                    for i, line in enumerate(lines, 1):
+                        if regex.search(line):
+                            rel_path = file_path.relative_to(self.workspace_dir) if file_path.is_relative_to(self.workspace_dir) else file_path
+
+                            if context > 0:
+                                start = max(0, i - 1 - context)
+                                end = min(len(lines), i + context)
+                                ctx_lines = []
+                                for j in range(start, end):
+                                    prefix = ">" if j == i - 1 else " "
+                                    ctx_lines.append(f"{prefix} {j+1:4d}| {lines[j]}")
+                                results.append(f"{rel_path}:\n" + "\n".join(ctx_lines))
+                            else:
+                                results.append(f"{rel_path}:{i}: {line.strip()}")
+
+                            if len(results) >= max_results:
+                                break
+                except (OSError, UnicodeDecodeError):
+                    continue
+
+            if not results:
+                return ToolResult(success=True, content=f"No matches for: {pattern}")
+
+            output = "\n\n".join(results) if context > 0 else "\n".join(results)
+            if len(results) >= max_results:
+                output += f"\n\n... (limited to {max_results} results)"
+
+            return ToolResult(success=True, content=output)
         except Exception as e:
             return ToolResult(success=False, content="", error=str(e))

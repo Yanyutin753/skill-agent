@@ -18,7 +18,7 @@ from fastapi_agent.api.deps import (
     get_builtin_research_team,
     AgentFactory,
 )
-from fastapi_agent.core import Agent, LLMClient
+from fastapi_agent.core import Agent, LLMClient, FileMemory
 from fastapi_agent.core.team import Team
 from fastapi_agent.core.config import Settings
 from fastapi_agent.core.session import AgentRunRecord
@@ -187,6 +187,19 @@ async def run_agent(
             )
             await session_manager.add_run(request.session_id, run_record)
 
+        # Save to FileMemory (AGENTS.md)
+        if request.session_id:
+            memory = FileMemory(
+                user_id=request.user_id or "default",
+                session_id=request.session_id,
+            )
+            if not memory.exists():
+                memory.init_memory(context=f"Task: {request.message}")
+            tools_used = [log.get("tool") for log in logs if log.get("type") == "tool_call" and log.get("tool")]
+            session = await session_manager.get_session(request.session_id, "default") if session_manager else None
+            round_num = len(session.runs) if session else 1
+            memory.append_round(round_num, request.message, result, tools_used or None)
+
         return AgentResponse(
             success=success,
             message=result,
@@ -320,6 +333,18 @@ async def run_agent_stream(
                     metadata={}
                 )
                 await session_manager.add_run(request.session_id, run_record)
+
+            # Save to FileMemory (AGENTS.md)
+            if request.session_id:
+                memory = FileMemory(
+                    user_id=request.user_id or "default",
+                    session_id=request.session_id,
+                )
+                if not memory.exists():
+                    memory.init_memory(context=f"Task: {request.message}")
+                session = await session_manager.get_session(request.session_id, "default") if session_manager else None
+                round_num = len(session.runs) if session else 1
+                memory.append_round(round_num, request.message, content_buffer)
 
             # Send final done event
             yield "event: done\ndata: {}\n\n"

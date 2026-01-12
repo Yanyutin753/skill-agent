@@ -79,3 +79,5 @@ Thumbs.db
 mcp.json
 
 .kiro/
+# Agent memory files
+.agent_memories/

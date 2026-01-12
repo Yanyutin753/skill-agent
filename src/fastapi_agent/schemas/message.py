@@ -120,6 +120,10 @@ class AgentRequest(BaseModel):
     )
 
     # Session management
+    user_id: Optional[str] = Field(
+        "default",
+        description="User ID for memory isolation"
+    )
     session_id: Optional[str] = Field(
         None,
         description="Session ID for multi-turn conversation. If provided, history context will be loaded."

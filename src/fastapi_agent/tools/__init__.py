@@ -1,7 +1,14 @@
 """Tools for FastAPI Agent."""
 
 from .base import Tool, ToolResult
-from .file_tools import ReadTool, WriteTool, EditTool
+from .file_tools import (
+    ReadTool,
+    WriteTool,
+    EditTool,
+    ListDirTool,
+    GlobTool,
+    GrepTool,
+)
 from .bash_tool import BashTool
 from .note_tool import SessionNoteTool, RecallNoteTool
 from .spawn_agent_tool import SpawnAgentTool
@@ -19,6 +26,9 @@ __all__ = [
     "ReadTool",
     "WriteTool",
     "EditTool",
+    "ListDirTool",
+    "GlobTool",
+    "GrepTool",
     "BashTool",
     "SessionNoteTool",
     "RecallNoteTool",

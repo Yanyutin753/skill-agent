@@ -70,6 +70,7 @@ skill-agent/
 │       │   ├── config.py       # 配置管理
 │       │   ├── token_manager.py    # Token 管理与消息总结
 │       │   ├── agent_logger.py     # 结构化日志系统
+│       │   ├── file_memory.py      # AGENTS.md 文件记忆系统
 │       │   ├── session.py          # Session 数据模型
 │       │   ├── session_storage.py  # 存储后端抽象层
 │       │   ├── session_manager.py  # 统一 Session 管理器
@@ -390,13 +391,16 @@ asyncio.run(run_agent())
 
 ## 可用工具
 
-### 基础工具
+### 基础工具 (deepagents 风格)
 
 | 工具 | 描述 | 参数 |
 |------|------|------|
-| `read_file` | 读取文件内容 | `path`, `offset`, `limit` |
+| `read_file` | 读取文件内容（带行号） | `path`, `offset`, `limit` |
 | `write_file` | 写入文件 | `path`, `content` |
-| `edit_file` | 编辑文件（字符串替换）| `path`, `old_str`, `new_str` |
+| `edit_file` | 编辑文件（字符串替换） | `path`, `old_str`, `new_str`, `replace_all` |
+| `ls` | 列出目录内容（含大小和时间） | `path`, `recursive` |
+| `glob` | 按模式查找文件 | `pattern`, `path` |
+| `grep` | 搜索文件内容（支持正则） | `pattern`, `path`, `include`, `context` |
 | `bash` | 执行 Bash 命令 | `command`, `timeout` |
 | `get_skill` | 加载 Skill 专家指导 | `skill_name` |
 | `session_note` | 存储会话记忆 | `note` |
@@ -517,6 +521,67 @@ SESSION_MAX_AGE_DAYS=7
 SESSION_MAX_RUNS_PER_SESSION=100
 SESSION_HISTORY_RUNS=3
 ```
+
+### 文件记忆系统 (AGENTS.md)
+
+参考 [AGENTS.md 协议](https://agents.md/)，提供基于文件的记忆管理：
+
+```
+./.agent_memories/
+└── {user_id}/
+    └── {session_id}/
+        └── AGENTS.md    # 会话记忆文件
+```
+
+AGENTS.md 文件结构：
+
+```markdown
+# AGENTS.md
+
+## Meta
+- user: user_001
+- session: sess_abc
+- created: 2025-01-12T10:30:00
+- updated: 2025-01-12T11:45:00
+
+## Context
+当前任务: 重构记忆管理
+
+## History
+### Round 1
+**User**: 分析项目结构
+**Assistant**: 项目使用 FastAPI...
+**Tools**: read_file, ls
+
+## Key Facts
+- 已修改文件: src/core/agent.py
+- 待办: 添加测试
+
+## Notes
+- [10:30] 用户偏好简洁方案
+```
+
+使用方式：
+
+```python
+from fastapi_agent.core import FileMemory, FileMemoryManager
+
+# 创建记忆实例
+mem = FileMemory(user_id="user_001", session_id="sess_abc")
+mem.init_memory("任务上下文")
+mem.append_round(1, "用户消息", "助手回复", ["read_file", "ls"])
+
+# 管理器操作
+mgr = FileMemoryManager()
+mgr.list_sessions("user_001")
+mgr.cleanup_expired(max_age_days=7)
+```
+
+优势：
+- **上下文窗口解耦**: 记忆存文件，Agent 按需读取
+- **用户/会话隔离**: 目录结构天然隔离
+- **标准协议**: 遵循 AGENTS.md 开放规范
+- **调试友好**: 直接查看 Markdown 文件
 
 ## 功能对比
 

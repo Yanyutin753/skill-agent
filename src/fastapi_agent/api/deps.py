@@ -13,7 +13,18 @@ from fastapi_agent.core.session_manager import (
     UnifiedTeamSessionManager,
 )
 from fastapi_agent.skills import create_skill_tools
-from fastapi_agent.tools import BashTool, EditTool, ReadTool, Tool, WriteTool, SpawnAgentTool, GetUserInputTool
+from fastapi_agent.tools import (
+    BashTool,
+    EditTool,
+    GlobTool,
+    GrepTool,
+    ListDirTool,
+    ReadTool,
+    Tool,
+    WriteTool,
+    SpawnAgentTool,
+    GetUserInputTool,
+)
 from fastapi_agent.tools.mcp_loader import cleanup_mcp_connections, load_mcp_tools_async
 from fastapi_agent.tools.note_tool import RecallNoteTool, SessionNoteTool
 from fastapi_agent.tools.rag_tool import RAGTool
@@ -278,15 +289,18 @@ def get_tools(workspace_dir: str | None = None) -> list[Tool]:
     workspace_path = Path(workspace_dir or settings.AGENT_WORKSPACE_DIR)
     workspace_path.mkdir(parents=True, exist_ok=True)
 
-    # Initialize base tools
+    # Initialize base tools (deepagents-style filesystem tools)
     tools = [
         ReadTool(workspace_dir=str(workspace_path)),
         WriteTool(workspace_dir=str(workspace_path)),
         EditTool(workspace_dir=str(workspace_path)),
+        ListDirTool(workspace_dir=str(workspace_path)),
+        GlobTool(workspace_dir=str(workspace_path)),
+        GrepTool(workspace_dir=str(workspace_path)),
         BashTool(),
         SessionNoteTool(memory_file=str(workspace_path / ".agent_memory.json")),
         RecallNoteTool(memory_file=str(workspace_path / ".agent_memory.json")),
-        GetUserInputTool(),  # Human-in-the-loop tool
+        GetUserInputTool(),
     ]
 
     # Load skills if enabled
@@ -443,18 +457,20 @@ class AgentFactory:
 
         tools = []
 
-        # Base tools
+        # Base tools (deepagents-style filesystem tools)
         enable_base = config.enable_base_tools if config.enable_base_tools is not None else True
         if enable_base:
-            # Create all base tools
             all_base_tools = [
                 ReadTool(workspace_dir=workspace_dir),
                 WriteTool(workspace_dir=workspace_dir),
                 EditTool(workspace_dir=workspace_dir),
+                ListDirTool(workspace_dir=workspace_dir),
+                GlobTool(workspace_dir=workspace_dir),
+                GrepTool(workspace_dir=workspace_dir),
                 BashTool(),
                 SessionNoteTool(memory_file=str(Path(workspace_dir) / ".agent_memory.json")),
                 RecallNoteTool(memory_file=str(Path(workspace_dir) / ".agent_memory.json")),
-                GetUserInputTool(),  # Human-in-the-loop tool
+                GetUserInputTool(),
             ]
 
             # Build tool name mapping (supports both actual names and short aliases)
