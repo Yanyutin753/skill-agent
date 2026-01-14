@@ -22,7 +22,7 @@ from fastapi_agent.tools.bash_tool import BashTool
 
 async def main():
     llm_client = LLMClient(
-        api_key="sk-eb2e45cc436a440bbb606f588ebbc094",
+        api_key="api_key",
         model="deepseek/deepseek-chat",
     )
 
