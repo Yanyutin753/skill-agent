@@ -58,10 +58,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       currentSessionId: currentId,
     });
 
-    // Create initial session if none exist
-    if (storedSessions.length === 0) {
-      get().createSession('新对话');
-    }
   },
 
   createSession: (title = '新对话') => {
@@ -112,11 +108,6 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       };
     });
 
-    // Create new session if none left
-    const { sessions } = get();
-    if (sessions.length === 0) {
-      get().createSession('新对话');
-    }
   },
 
   updateSessionTitle: (id: string, title: string) => {

@@ -11,7 +11,10 @@
 
 import asyncio
 import json
+import logging
 import time
+
+logger = logging.getLogger(__name__)
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -137,9 +140,6 @@ class AgentSession:
             task = run.task
             response = run.response
 
-            # 截断过长响应
-            if truncate_response and len(response) > 500:
-                response = response[:500] + "... [truncated]"
 
             round_text = f"[Round {i}]\nUser: {task}\nAssistant: {response}\n"
 
@@ -350,7 +350,7 @@ class AgentSessionManager:
                     updated_at=session_data["updated_at"],
                 )
         except (json.JSONDecodeError, KeyError) as e:
-            print(f"Warning: Failed to load agent sessions from {self.storage_path}: {e}")
+            logger.warning("Failed to load agent sessions from %s: %s", self.storage_path, e)
             self.sessions = {}
 
     def cleanup_old_sessions(self, max_age_days: int = 7) -> int:
@@ -523,9 +523,6 @@ class TeamSession:
             task = run.task
             response = run.response
 
-            # 截断过长响应
-            if truncate_response and len(response) > 500:
-                response = response[:500] + "... [truncated]"
 
             round_text = f"[Round {i}]\nTask: {task}\nResponse: {response}\n"
 
@@ -823,8 +820,7 @@ class TeamSessionManager:
                     updated_at=session_data["updated_at"],
                 )
         except (json.JSONDecodeError, KeyError) as e:
-            # 如果文件损坏,记录错误但继续运行
-            print(f"Warning: Failed to load sessions from {self.storage_path}: {e}")
+            logger.warning("Failed to load team sessions from %s: %s", self.storage_path, e)
             self.sessions = {}
 
     def cleanup_old_sessions(self, max_age_days: int = 7) -> int:

@@ -14,10 +14,9 @@ export function useAgentStream() {
 
   const sendMessage = useCallback(
     async (content: string, max_steps?: number) => {
-      const currentSession = sessionStore.getCurrentSession();
+      let currentSession = sessionStore.getCurrentSession();
       if (!currentSession) {
-        console.error('No active session');
-        return;
+        currentSession = sessionStore.createSession('新对话');
       }
 
       // Add user message

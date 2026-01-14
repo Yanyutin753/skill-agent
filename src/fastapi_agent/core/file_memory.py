@@ -4,11 +4,18 @@ Implements the AGENTS.md protocol for AI agent memory management.
 Each user/session combination has its own AGENTS.md file for isolation.
 """
 
+import logging
+import os
 import shutil
 import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger(__name__)
+
+SUMMARIZE_EVERY_N_ROUNDS = int(os.getenv("MEMORY_SUMMARIZE_ROUNDS", "5"))
+SUMMARIZE_MODEL = os.getenv("MEMORY_SUMMARIZE_MODEL", "gpt-4o-mini")
 
 
 class FileMemory:
@@ -88,17 +95,16 @@ class FileMemory:
 
         tools_str = f"\n**Tools**: {', '.join(tools_used)}" if tools_used else ""
 
-        assistant_truncated = assistant_msg
-        if len(assistant_msg) > 500:
-            assistant_truncated = assistant_msg[:500] + "..."
-
         round_text = f"""
 ### Round {round_num}
 **User**: {user_msg}
-**Assistant**: {assistant_truncated}{tools_str}
+**Assistant**: {assistant_msg}{tools_str}
 """
         content = self._insert_before_section(content, "## Key Facts", round_text)
         self.write(content)
+
+        if round_num > 0 and round_num % SUMMARIZE_EVERY_N_ROUNDS == 0:
+            self._try_summarize()
 
     def update_key_facts(self, facts: list[str]) -> None:
         """Update Key Facts section."""
@@ -140,6 +146,64 @@ class FileMemory:
         if not content:
             return ""
         return f"<memory>\n{content}\n</memory>"
+
+    def _try_summarize(self) -> None:
+        """Try to summarize history (called after every N rounds)."""
+        try:
+            content = self.read()
+            history = self._extract_section(content, "## History", "## Key Facts")
+            if not history or len(history) < 500:
+                return
+
+            summary = self._summarize_history_sync(history)
+            if summary:
+                new_content = self._replace_section(content, "## History", f"\n{summary}\n")
+                self.write(new_content)
+                logger.info(f"Memory summarized for session {self.session_id}")
+        except Exception as e:
+            logger.warning(f"Failed to summarize: {e}")
+
+    def _extract_section(self, content: str, start: str, end: str) -> str:
+        """Extract content between two section headers."""
+        if start not in content:
+            return ""
+        parts = content.split(start)
+        if len(parts) < 2:
+            return ""
+        section = parts[1]
+        if end in section:
+            section = section.split(end)[0]
+        return section.strip()
+
+    def _summarize_history_sync(self, history: str) -> Optional[str]:
+        """Summarize history using LLM (sync wrapper)."""
+        try:
+            import litellm
+
+            prompt = f"""请将以下对话历史总结为简洁的要点，保留关键信息：
+1. 用户的主要需求和问题
+2. 重要的结论和答案
+3. 关键的事实和数据
+
+对话历史：
+{history}
+
+输出格式：
+### 对话摘要
+- [要点1]
+- [要点2]
+...
+"""
+            response = litellm.completion(
+                model=SUMMARIZE_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1000,
+                timeout=30,
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            logger.warning(f"Failed to summarize history: {e}")
+            return None
 
     def _update_meta_timestamp(self, content: str, timestamp: str) -> str:
         """Update the 'updated' timestamp in Meta section."""

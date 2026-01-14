@@ -4,10 +4,13 @@ Skill Tool - Agent 按需加载 Skills 的工具
 实现 Progressive Disclosure (Level 2): 在需要时加载完整的 skill 内容
 """
 
+import logging
 from typing import Any
 
 from fastapi_agent.skills.skill_loader import SkillLoader
 from fastapi_agent.tools.base import Tool, ToolResult
+
+logger = logging.getLogger(__name__)
 
 
 class GetSkillTool(Tool):
@@ -72,9 +75,8 @@ def create_skill_tools(
     # 创建 skill loader
     loader = SkillLoader(skills_dir)
 
-    # 发现并加载 skills
     skills = loader.discover_skills()
-    print(f"✅ 发现 {len(skills)} 个 Skills")
+    logger.info("Discovered %d skills", len(skills))
 
     if not skills:
         return [], None

@@ -4,12 +4,15 @@ Skill Loader - 加载 Claude Skills 实现 Progressive Disclosure
 支持从 SKILL.md 文件加载技能并提供给 Agent
 """
 
+import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -67,7 +70,7 @@ class SkillLoader:
             frontmatter_match = re.match(r"^---\n(.*?)\n---\n(.*)$", content, re.DOTALL)
 
             if not frontmatter_match:
-                print(f"⚠️  {skill_path} 缺少 YAML frontmatter")
+                logger.warning("Skill %s missing YAML frontmatter", skill_path)
                 return None
 
             frontmatter_text = frontmatter_match.group(1)
@@ -77,12 +80,11 @@ class SkillLoader:
             try:
                 frontmatter = yaml.safe_load(frontmatter_text)
             except yaml.YAMLError as e:
-                print(f"❌ 解析 YAML frontmatter 失败: {e}")
+                logger.error("Failed to parse YAML frontmatter in %s: %s", skill_path, e)
                 return None
 
-            # 必需字段
             if "name" not in frontmatter or "description" not in frontmatter:
-                print(f"⚠️  {skill_path} 缺少必需字段 (name 或 description)")
+                logger.warning("Skill %s missing required fields (name or description)", skill_path)
                 return None
 
             # 获取 skill 目录（SKILL.md 的父目录）
@@ -105,7 +107,7 @@ class SkillLoader:
             return skill
 
         except Exception as e:
-            print(f"❌ 加载 skill 失败 ({skill_path}): {e}")
+            logger.error("Failed to load skill from %s: %s", skill_path, e)
             return None
 
     def _process_skill_paths(self, content: str, skill_dir: Path) -> str:
@@ -191,7 +193,7 @@ class SkillLoader:
         skills = []
 
         if not self.skills_dir.exists():
-            print(f"⚠️  Skills 目录不存在: {self.skills_dir}")
+            logger.warning("Skills directory not found: %s", self.skills_dir)
             return skills
 
         # 递归查找所有 SKILL.md 文件

@@ -381,31 +381,31 @@ class AgentFactory:
         self,
         llm_client: LLMClient,
         config: Optional["AgentConfig"] = None,
+        session_id: Optional[str] = None,
     ) -> Agent:
         """Create agent with dynamic configuration.
 
         Args:
             llm_client: LLM client instance
             config: Dynamic agent configuration (optional)
+            session_id: Session ID for workspace isolation (optional)
 
         Returns:
             Configured agent instance
         """
         from fastapi_agent.schemas.message import AgentConfig
+        from fastapi_agent.core.workspace import get_workspace_manager
 
-        # Use default config if not provided
         if config is None:
             config = AgentConfig()
 
-        # Merge config with settings (config takes precedence)
-        workspace_dir = config.workspace_dir or self.settings.AGENT_WORKSPACE_DIR
+        base_workspace = config.workspace_dir or self.settings.AGENT_WORKSPACE_DIR
         max_steps = config.max_steps or self.settings.AGENT_MAX_STEPS
         token_limit = config.token_limit or 120000
         enable_summarization = config.enable_summarization if config.enable_summarization is not None else True
 
-        # Prepare workspace
-        workspace_path = Path(workspace_dir)
-        workspace_path.mkdir(parents=True, exist_ok=True)
+        workspace_manager = get_workspace_manager(base_workspace)
+        workspace_path = workspace_manager.get_session_workspace(session_id)
 
         # Build tool list based on configuration
         tools = await self._build_tools(config, str(workspace_path))

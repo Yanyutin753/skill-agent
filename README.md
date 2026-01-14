@@ -38,6 +38,7 @@ ChatGPT 风格界面，支持 Thinking Process 展示、流式输出、会话管
 ### 多 Agent 协作
 - **SpawnAgentTool**: 动态创建子 Agent 执行委派任务（类似 Claude Code Task 工具）
 - **Team 系统**: Leader-Member 多 Agent 协作，支持智能任务委派
+- **Graph 执行引擎**: LangGraph 风格的声明式工作流定义，支持并行执行、条件路由、状态 Reducer
 - **RAG 知识库**: 混合检索（语义+关键词），基于 PostgreSQL + pgvector
 
 ### 性能与监控
@@ -66,6 +67,8 @@ skill-agent/
 │       ├── core/               # 核心组件
 │       │   ├── agent.py        # Agent 核心逻辑
 │       │   ├── team.py         # Team 多 Agent 协作
+│       │   ├── graph.py        # Graph 执行引擎（LangGraph 风格）
+│       │   ├── agent_node.py   # AgentNode/ToolNode 封装
 │       │   ├── llm_client.py   # LLM 客户端（含流式）
 │       │   ├── config.py       # 配置管理
 │       │   ├── token_manager.py    # Token 管理与消息总结
@@ -74,6 +77,10 @@ skill-agent/
 │       │   ├── session.py          # Session 数据模型
 │       │   ├── session_storage.py  # 存储后端抽象层
 │       │   ├── session_manager.py  # 统一 Session 管理器
+│       │   ├── langfuse_tracing.py # Langfuse 可观测性集成
+│       │   ├── agent_loop.py       # Agent 执行循环
+│       │   ├── prompt_builder.py   # 结构化 Prompt 构建
+│       │   ├── checkpoint.py       # 执行状态检查点
 │       │   └── trace_logger.py     # 多 Agent 工作流追踪
 │       ├── tools/              # 工具实现
 │       │   ├── base.py         # 工具基类
@@ -95,7 +102,7 @@ skill-agent/
 │       └── schemas/            # Pydantic 数据模型
 │           ├── message.py      # Agent 请求/响应
 │           └── team.py         # Team 请求/响应
-├── frontend/                   # React Web 前端
+├── frontend/                   # React Web 前端 (Vite + TailwindCSS)
 ├── tests/                      # 测试套件
 ├── skills/                     # 外部 Skills 定义
 ├── workspace/                  # Agent 工作目录
@@ -203,17 +210,27 @@ uv run uvicorn fastapi_agent.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 服务启动后，访问：
-- API 文档: http://localhost:8000/docs
-- 健康检查: http://localhost:8000/health
-- 工具列表: http://localhost:8000/api/v1/tools/
+- API 文档: <http://localhost:8000/docs>
+- 健康检查: <http://localhost:8000/health>
+- 工具列表: <http://localhost:8000/api/v1/tools/>
 
 ### 6. 启动前端（可选）
 
 ```bash
-cd frontend && npm install && npm run dev
+cd frontend
+cp .env.example .env  # 配置环境变量
+pnpm install
+pnpm dev
 ```
 
-前端访问: http://localhost:3001
+前端环境变量 (`frontend/.env`)：
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `VITE_API_URL` | 后端API地址 | `http://localhost:8000` |
+| `VITE_LANGFUSE_URL` | Langfuse调试控制台地址 | `https://cloud.langfuse.com` |
+
+前端访问: <http://localhost:3001>
 
 ## 多 LLM 提供商支持
 
@@ -300,7 +317,7 @@ asyncio.run(run_agent())
 
 ### 通过交互式文档
 
-访问 http://localhost:8000/docs 使用 Swagger UI 进行交互式测试。
+访问 <http://localhost:3001>/docs> 使用 Swagger UI 进行交互式测试。
 
 ## API 端点
 
@@ -486,6 +503,70 @@ search_knowledge(
 )
 ```
 
+### Graph 执行引擎
+
+受 LangGraph 启发的声明式工作流定义，支持：
+
+- **顺序执行**: 节点按顺序执行
+- **并行执行**: 多个节点同时执行
+- **条件路由**: 基于状态动态选择下一个节点
+- **状态 Reducer**: 合并并行执行结果
+
+```python
+from fastapi_agent.core import StateGraph, START, END, AgentNode, create_router
+from typing import TypedDict, Annotated
+import operator
+
+class WorkflowState(TypedDict):
+    task: str
+    status: str
+    results: Annotated[list, operator.add]
+
+async def analyzer(state):
+    if "urgent" in state["task"]:
+        return {"status": "urgent", "results": ["Analyzed as urgent"]}
+    return {"status": "normal", "results": ["Analyzed as normal"]}
+
+async def urgent_handler(state):
+    return {"results": ["Handled urgently: " + state["task"]]}
+
+async def normal_handler(state):
+    return {"results": ["Handled normally: " + state["task"]]}
+
+graph = StateGraph(WorkflowState)
+graph.add_node("analyzer", analyzer)
+graph.add_node("urgent", urgent_handler)
+graph.add_node("normal", normal_handler)
+
+graph.add_edge(START, "analyzer")
+graph.add_conditional_edges(
+    "analyzer",
+    create_router("status", {"urgent": "urgent", "normal": "normal"})
+)
+graph.add_edge("urgent", END)
+graph.add_edge("normal", END)
+
+app = graph.compile()
+result = await app.invoke({"task": "urgent fix bug", "status": "", "results": []})
+```
+
+**AgentNode**: 将现有 Agent 封装为图节点
+
+```python
+from fastapi_agent.core import AgentNode
+
+researcher = AgentNode(
+    name="researcher",
+    llm_client=client,
+    system_prompt="You are a research assistant.",
+    tools=[search_tool],
+    input_key="task",
+    output_key="result",
+)
+
+graph.add_node("research", researcher)
+```
+
 配置：
 ```bash
 ENABLE_RAG=true
@@ -598,7 +679,7 @@ mgr.cleanup_expired(max_age_days=7)
 | Web 前端 | No | Yes (React) |
 | SpawnAgent | No | Yes |
 | Team 多 Agent | No | Yes |
-| RAG 知识库 | No | Yes
+| RAG 知识库 | No | Yes |
 
 ## 开发指南
 

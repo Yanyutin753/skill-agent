@@ -22,6 +22,21 @@
 
 ## 快速开始
 
+### 环境变量配置
+
+复制示例配置文件：
+
+```bash
+cp .env.example .env
+```
+
+配置项：
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| VITE_API_URL | 后端API地址 | http://localhost:8000 |
+| VITE_LANGFUSE_URL | Langfuse调试控制台地址 | https://cloud.langfuse.com |
+
 ### 安装依赖
 
 ```bash

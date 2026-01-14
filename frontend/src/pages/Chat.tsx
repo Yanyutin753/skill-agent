@@ -145,16 +145,18 @@ export default function Chat() {
             <div className="font-medium">知识库</div>
           </Link>
 
-          {/* Debug Console Link */}
-          <Link
-            to="/debug"
+          {/* Debug Console Link - Langfuse */}
+          <a
+            href={import.meta.env.VITE_LANGFUSE_URL || "https://cloud.langfuse.com"}
+            target="_blank"
+            rel="noopener noreferrer"
             className="flex items-center gap-3 px-3 py-3 rounded-md hover:bg-[var(--bg-sidebar-hover)] cursor-pointer transition-colors text-sm"
           >
             <div className="w-8 h-8 rounded bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center">
               <Bug className="w-4 h-4 text-white" />
             </div>
             <div className="font-medium">调试控制台</div>
-          </Link>
+          </a>
 
           {/* User Profile */}
           <div className="flex items-center gap-3 px-3 py-3 rounded-md hover:bg-[var(--bg-sidebar-hover)] cursor-pointer transition-colors">

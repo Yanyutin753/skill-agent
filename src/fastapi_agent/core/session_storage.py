@@ -8,7 +8,10 @@ Session 存储后端抽象层
 """
 
 import json
+import logging
 import time
+
+logger = logging.getLogger(__name__)
 from abc import ABC, abstractmethod
 from dataclasses import asdict
 from pathlib import Path
@@ -86,7 +89,7 @@ class FileStorage(SessionStorage):
                 with self.storage_path.open("r", encoding="utf-8") as f:
                     self._data = json.load(f)
             except (json.JSONDecodeError, IOError) as e:
-                print(f"Warning: Failed to load {self.storage_path}: {e}")
+                logger.warning("Failed to load session storage from %s: %s", self.storage_path, e)
                 self._data = {}
 
     def _save(self) -> None:

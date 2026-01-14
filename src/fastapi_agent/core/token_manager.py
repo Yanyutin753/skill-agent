@@ -1,8 +1,11 @@
 """Token management for message history with automatic summarization."""
 
+import logging
 from typing import Any
 
 import tiktoken
+
+logger = logging.getLogger(__name__)
 
 from fastapi_agent.core.llm_client import LLMClient
 from fastapi_agent.schemas.message import Message
@@ -154,8 +157,10 @@ class TokenManager:
         if not need_compress:
             return messages
 
-        print(f"\n📊 对话轮次: {num_rounds}, Token: {estimated_tokens}/{self.token_limit}")
-        print("🔄 触发记忆压缩...")
+        logger.info(
+            "Token compression triggered: rounds=%d, tokens=%d/%d",
+            num_rounds, estimated_tokens, self.token_limit
+        )
 
         # 至少需要 2 轮才能压缩
         if num_rounds < 2:
@@ -197,8 +202,10 @@ class TokenManager:
         new_messages.extend(messages[compress_end_idx:])
 
         new_tokens = self.estimate_tokens(new_messages)
-        print(f"✓ 记忆压缩完成: {estimated_tokens} → {new_tokens} tokens")
-        print(f"  压缩了 {rounds_to_compress} 轮对话，保留最近 1 轮")
+        logger.info(
+            "Token compression completed: %d -> %d tokens, compressed %d rounds",
+            estimated_tokens, new_tokens, rounds_to_compress
+        )
 
         return new_messages
     
@@ -261,7 +268,6 @@ class TokenManager:
             return response.content if response.content else ""
 
         except Exception as e:
-            print(f"⚠️ 核心记忆提取失败: {e}")
-            # 失败时返回简单摘要
-            return f"[{num_rounds} 轮对话历史，提取失败]"
+            logger.warning("Core memory extraction failed: %s", e)
+            return f"[{num_rounds} rounds history, extraction failed]"
 

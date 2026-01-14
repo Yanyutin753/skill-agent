@@ -135,8 +135,8 @@ async def run_agent(
         if request.max_steps and not config.max_steps:
             config.max_steps = request.max_steps
 
-        # Create agent with dynamic configuration
-        agent = await agent_factory.create_agent(llm_client, config)
+        # Create agent with dynamic configuration and session-isolated workspace
+        agent = await agent_factory.create_agent(llm_client, config, session_id=request.session_id)
 
         # Load history context if session_id provided
         if request.session_id and session_manager:
@@ -279,8 +279,8 @@ async def run_agent_stream(
             if request.max_steps and not config.max_steps:
                 config.max_steps = request.max_steps
 
-            # Create agent with dynamic configuration
-            agent = await agent_factory.create_agent(llm_client, config)
+            # Create agent with dynamic configuration and session-isolated workspace
+            agent = await agent_factory.create_agent(llm_client, config, session_id=request.session_id)
 
             # Load history context if session_id provided
             if request.session_id and session_manager:
