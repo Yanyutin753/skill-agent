@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from fastapi_agent.core.session import (
+from omni_agent.core.session import (
     AgentRunRecord,
     AgentSession,
     AgentSessionManager,
@@ -28,11 +28,11 @@ from fastapi_agent.core.session import (
     TeamSession,
     TeamSessionManager,
 )
-from fastapi_agent.core.session_manager import (
+from omni_agent.core.session_manager import (
     UnifiedAgentSessionManager,
     UnifiedTeamSessionManager,
 )
-from fastapi_agent.core.session_storage import FileStorage
+from omni_agent.core.session_storage import FileStorage
 
 
 # ============================================================================

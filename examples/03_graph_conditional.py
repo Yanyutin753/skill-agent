@@ -10,7 +10,7 @@ Graph 条件路由示例
 import asyncio
 from typing import TypedDict
 
-from fastapi_agent.core import StateGraph, START, END, create_router
+from omni_agent.core import StateGraph, START, END, create_router
 
 
 class TaskState(TypedDict):

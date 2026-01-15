@@ -197,7 +197,7 @@ shared_state = {
 ## 5. 文件结构
 
 ```
-src/fastapi_agent/
+src/omni_agent/
 ├── core/
 │   ├── agent_team.py          # AgentTeam 核心类
 │   ├── coordination.py        # 协调策略实现
@@ -259,8 +259,8 @@ src/fastapi_agent/
 ## 8. 示例用法
 
 ```python
-from fastapi_agent.core import Agent, AgentTeam
-from fastapi_agent.core.coordination import CoordinationStrategy
+from omni_agent.core import Agent, AgentTeam
+from omni_agent.core.coordination import CoordinationStrategy
 
 # 创建成员
 researcher = Agent(

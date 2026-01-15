@@ -5,9 +5,9 @@
 ### 基础使用 (无会话)
 
 ```python
-from fastapi_agent.core.llm_client import LLMClient
-from fastapi_agent.core.team import Team
-from fastapi_agent.schemas.team import TeamConfig, TeamMemberConfig
+from omni_agent.core.llm_client import LLMClient
+from omni_agent.core.team import Team
+from omni_agent.schemas.team import TeamConfig, TeamMemberConfig
 
 # 创建团队配置
 team_config = TeamConfig(
@@ -33,11 +33,11 @@ print(response.message)
 ### 多轮对话 (有会话)
 
 ```python
-from fastapi_agent.core.session import TeamSessionManager
+from omni_agent.core.session import TeamSessionManager
 
 # 创建会话管理器
 session_manager = TeamSessionManager(
-    storage_path="~/.fastapi-agent/team_sessions.json"  # 可选持久化
+    storage_path="~/.omni-agent/team_sessions.json"  # 可选持久化
 )
 
 # 创建 Team (传入 session_manager)
@@ -207,7 +207,7 @@ session_id = "550e8400-e29b-41d4-a716-446655440000"
 
 ```python
 # ✅ 推荐: 用户目录
-storage_path = "~/.fastapi-agent/team_sessions.json"
+storage_path = "~/.omni-agent/team_sessions.json"
 
 # ✅ 推荐: 项目目录
 storage_path = "./data/sessions.json"
@@ -322,7 +322,7 @@ A: 会!所有 leader 和 member 的运行都会被记录,并通过 `parent_run_i
 
 - 完整设计文档: `docs/TEAM_SESSION_MANAGEMENT.md`
 - 测试示例: `examples/test_team_session.py`
-- API 文档: `src/fastapi_agent/core/session.py`
+- API 文档: `src/omni_agent/core/session.py`
 
 ## ✨ 总结
 

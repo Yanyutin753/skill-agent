@@ -12,11 +12,11 @@ import asyncio
 import sys
 from pathlib import Path
 
-from fastapi_agent.core.agent import Agent
-from fastapi_agent.core.config import settings
-from fastapi_agent.core.llm_client import LLMClient
-from fastapi_agent.tools.file_tools import ReadTool
-from fastapi_agent.tools.spawn_agent_tool import SpawnAgentTool
+from omni_agent.core.agent import Agent
+from omni_agent.core.config import settings
+from omni_agent.core.llm_client import LLMClient
+from omni_agent.tools.file_tools import ReadTool
+from omni_agent.tools.spawn_agent_tool import SpawnAgentTool
 
 
 SYSTEM_PROMPT = """你是一个代码质量分析协调员。
@@ -45,7 +45,7 @@ async def run_real_task():
         return False
 
     # Target file to analyze
-    target_file = Path(__file__).parent.parent.parent / "src/fastapi_agent/tools/spawn_agent_tool.py"
+    target_file = Path(__file__).parent.parent.parent / "src/omni_agent/tools/spawn_agent_tool.py"
     if not target_file.exists():
         print(f"ERROR: Target file not found: {target_file}")
         return False
@@ -161,7 +161,7 @@ async def run_simple_task():
         print("ERROR: LLM_API_KEY not set")
         return False
 
-    target_file = Path(__file__).parent.parent.parent / "src/fastapi_agent/tools/base.py"
+    target_file = Path(__file__).parent.parent.parent / "src/omni_agent/tools/base.py"
 
     llm_client = LLMClient(
         api_key=settings.LLM_API_KEY,

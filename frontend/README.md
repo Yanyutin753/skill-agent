@@ -1,6 +1,6 @@
-# FastAPI Agent Frontend
+# Omni Agent Frontend
 
-基于 React + TypeScript + Tailwind CSS 构建的 FastAPI Agent Web 前端，提供 ChatGPT 风格的对话界面。
+基于 React + TypeScript + Tailwind CSS 构建的 Omni Agent Web 前端，提供 ChatGPT 风格的对话界面。
 
 ## 功能特性
 

@@ -147,7 +147,7 @@ LLM_API_BASE="https://your-custom-endpoint.com/v1"
 ## 技术细节
 
 ### 验证器实现位置
-`src/fastapi_agent/core/config.py:237-279`
+`src/omni_agent/core/config.py:237-279`
 
 ### 核心逻辑
 1. 去除首尾空格
@@ -176,7 +176,7 @@ LLM_API_BASE="https://your-custom-endpoint.com/v1"
 ## 相关文件
 
 **配置类**：
-- `src/fastapi_agent/core/config.py` - Settings 类和验证器
+- `src/omni_agent/core/config.py` - Settings 类和验证器
 
 **配置文件**：
 - `.env.example` - 配置模板

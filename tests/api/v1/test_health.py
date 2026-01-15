@@ -17,7 +17,7 @@ def test_root_endpoint(client: TestClient) -> None:
     response = client.get("/")
     assert response.status_code == 200
     data = response.json()
-    assert data["name"] == "FastAPI Agent"
+    assert data["name"] == "Omni Agent"
     assert data["version"] == "0.1.0"
     assert data["status"] == "running"
     assert "endpoints" in data

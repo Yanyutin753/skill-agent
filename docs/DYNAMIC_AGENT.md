@@ -447,7 +447,7 @@ def create_script_generation_config():
 curl http://localhost:8000/api/v1/tools/
 
 # 检查响应日志
-# 日志位置：~/.fastapi-agent/log/
+# 日志位置：~/.omni-agent/log/
 ```
 
 ## 总结

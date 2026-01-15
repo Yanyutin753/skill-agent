@@ -12,7 +12,7 @@ This project uses **uv** as the package manager (faster than pip) and **Make** f
 make install        # or: uv sync
 
 # Development server (with hot reload)
-make dev            # or: uv run uvicorn fastapi_agent.main:app --reload --host 0.0.0.0 --port 8000
+make dev            # or: uv run uvicorn omni_agent.main:app --reload --host 0.0.0.0 --port 8000
 
 # Run tests
 make test           # or: uv run pytest -v
@@ -34,30 +34,30 @@ uv run pytest tests/core/test_agent.py::test_function_name -v
 ### Important Notes
 - **Always use `uv run`** instead of direct `python` when running scripts
 - The project uses **Python 3.11+** (required)
-- Source code is in `src/fastapi_agent/`, not root level
+- Source code is in `src/omni_agent/`, not root level
 
 ## Architecture Overview
 
 ### Core Components
 
-**1. Agent Execution Loop** (`src/fastapi_agent/core/agent.py`)
+**1. Agent Execution Loop** (`src/omni_agent/core/agent.py`)
 - Manages the complete AI agent lifecycle
 - Integrates TokenManager for context management (prevents overflow at 120k tokens)
 - Integrates AgentLogger for structured JSON logging
 - Executes multi-step tasks with tool calls until completion or max_steps reached
 
-**2. Token Management** (`src/fastapi_agent/core/token_manager.py`)
+**2. Token Management** (`src/omni_agent/core/token_manager.py`)
 - Uses tiktoken (cl100k_base) for precise token counting
 - Automatically summarizes message history when exceeding token_limit
 - Summarization strategy: keeps all user messages, compresses agent execution rounds
 - Can reduce token usage by 50-70% while preserving context
 
-**3. Structured Logging** (`src/fastapi_agent/core/agent_logger.py`)
-- Creates timestamped log files: `~/.fastapi-agent/log/agent_run_YYYYMMDD_HHMMSS.log`
+**3. Structured Logging** (`src/omni_agent/core/agent_logger.py`)
+- Creates timestamped log files: `~/.omni-agent/log/agent_run_YYYYMMDD_HHMMSS.log`
 - Logs: STEP (token usage), REQUEST, RESPONSE, TOOL_EXECUTION (with timing), COMPLETION
 - Critical for debugging agent behavior and performance analysis
 
-**4. MCP Integration** (`src/fastapi_agent/services/mcp_manager.py`, `src/fastapi_agent/tools/mcp_loader.py`)
+**4. MCP Integration** (`src/omni_agent/services/mcp_manager.py`, `src/omni_agent/tools/mcp_loader.py`)
 - Loads external tools via Model Context Protocol at startup
 - Configuration in `mcp.json` (supports stdio, SSE, HTTP transports)
 - Tools stored globally in `api/deps.py` and injected into agent
@@ -140,7 +140,7 @@ Uses **pydantic-settings** with `.env` file support (`core/config.py`):
 
 ### Skills System
 
-**Location**: `src/fastapi_agent/skills/` (internal) and `./skills/` (external)
+**Location**: `src/omni_agent/skills/` (internal) and `./skills/` (external)
 
 **Architecture**:
 - Each skill is a directory with `SKILL.md` file
@@ -226,7 +226,7 @@ See `docs/MODEL_STANDARDIZATION.md` for detailed configuration.
 
 ### Team Multi-Agent System
 
-Team uses Leader-Member pattern for collaborative task execution (`src/fastapi_agent/core/team.py`):
+Team uses Leader-Member pattern for collaborative task execution (`src/omni_agent/core/team.py`):
 
 **Architecture**:
 1. Leader analyzes the task
@@ -245,7 +245,7 @@ Team uses Leader-Member pattern for collaborative task execution (`src/fastapi_a
 
 ### RAG Knowledge Base
 
-PostgreSQL + pgvector based hybrid search system (`src/fastapi_agent/rag/`):
+PostgreSQL + pgvector based hybrid search system (`src/omni_agent/rag/`):
 
 **Architecture**:
 - Document processing: PDF support via pypdf, chunking with overlap
@@ -287,15 +287,15 @@ uv run pytest tests/core/ -v -s
 ## Project Constraints
 
 **IMPORTANT PATHS**:
-- Source code: `src/fastapi_agent/` (NOT `fastapi_agent/`)
+- Source code: `src/omni_agent/` (NOT `omni_agent/`)
 - Tests: `tests/`
 - External skills: `./skills/`
 - Workspace: `./workspace/` (agent file operations default here)
-- Logs: `~/.fastapi-agent/log/` (agent execution logs)
+- Logs: `~/.omni-agent/log/` (agent execution logs)
 
 **Python Import Paths**:
-- Always import as: `from fastapi_agent.core import Agent`
-- Never: `from src.fastapi_agent.core import Agent`
+- Always import as: `from omni_agent.core import Agent`
+- Never: `from src.omni_agent.core import Agent`
 - The `src/` is in the Python path via `pyproject.toml` configuration
 
 **Critical Implementation Details**:
@@ -303,7 +303,7 @@ uv run pytest tests/core/ -v -s
 2. **Token Management**: Automatic, but can be configured via Agent constructor
 3. **Logging**: Automatic for all agent runs when `enable_logging=True` (default)
 4. **Tools**: Base tools + MCP tools + Skills all merged in `get_tools()`
-5. **PYTHONPATH**: When running from src/, must rename old `fastapi_agent/` to avoid conflicts
+5. **PYTHONPATH**: When running from src/, must rename old `omni_agent/` to avoid conflicts
 6. **Session Storage**: Three backends available - File (dev), Redis (production), PostgreSQL (persistent)
 7. **Model Names**: Always use `provider/model` format in LLM_MODEL setting
 
@@ -336,7 +336,7 @@ uv run pytest tests/core/ -v -s
 
 ### AgentLogger (Single Agent Logs)
 
-Located at `~/.fastapi-agent/log/agent_run_YYYYMMDD_HHMMSS.log`
+Located at `~/.omni-agent/log/agent_run_YYYYMMDD_HHMMSS.log`
 
 **Log Events**:
 - `STEP`: Step number, token usage statistics, percentage
@@ -348,26 +348,26 @@ Located at `~/.fastapi-agent/log/agent_run_YYYYMMDD_HHMMSS.log`
 **Viewing Logs**:
 ```bash
 # List recent logs
-ls -lht ~/.fastapi-agent/log/ | head -5
+ls -lht ~/.omni-agent/log/ | head -5
 
 # View specific run
-cat ~/.fastapi-agent/log/agent_run_20251113_223233.log
+cat ~/.omni-agent/log/agent_run_20251113_223233.log
 ```
 
 ### TraceLogger (Multi-Agent Workflow Tracking)
 
-Located at `~/.fastapi-agent/traces/trace_*.jsonl`
+Located at `~/.omni-agent/traces/trace_*.jsonl`
 
 **Use trace_viewer tool** for analysis:
 ```bash
 # List all traces
-uv run python -m fastapi_agent.utils.trace_viewer list
+uv run python -m omni_agent.utils.trace_viewer list
 
 # View detailed trace
-uv run python -m fastapi_agent.utils.trace_viewer view trace_team_20251205_abc123.jsonl
+uv run python -m omni_agent.utils.trace_viewer view trace_team_20251205_abc123.jsonl
 
 # Visualize workflow dependencies
-uv run python -m fastapi_agent.utils.trace_viewer flow trace_dependency_workflow_20251205_xyz789.jsonl
+uv run python -m omni_agent.utils.trace_viewer flow trace_dependency_workflow_20251205_xyz789.jsonl
 ```
 
 **Trace Information**:
@@ -382,11 +382,11 @@ See `docs/TRACING_GUIDE.md` for detailed usage.
 
 ## Common Pitfalls
 
-1. **Old Directory Conflicts**: If `fastapi_agent/` exists at root, rename it (should only be `src/fastapi_agent/`)
+1. **Old Directory Conflicts**: If `omni_agent/` exists at root, rename it (should only be `src/omni_agent/`)
 2. **MCP Not Loading**: Check `ENABLE_MCP=true` and verify `initialize_mcp_tools()` is called in lifespan
 3. **Import Errors**: Use `uv run` prefix, ensure `PYTHONPATH` includes `src/` if running directly
 4. **Token Overflow**: Already handled automatically by TokenManager, but configurable via `token_limit` parameter
-5. **Missing Logs**: Check `~/.fastapi-agent/log/` directory, ensure `enable_logging=True` in Agent constructor
+5. **Missing Logs**: Check `~/.omni-agent/log/` directory, ensure `enable_logging=True` in Agent constructor
 6. **RAG Search Fails**: Verify PostgreSQL + pgvector is installed and `DASHSCOPE_API_KEY` is set
 7. **Model Not Found**: Ensure `LLM_MODEL` uses `provider/model` format (e.g., `anthropic/claude-3-5-sonnet-20241022`)
 8. **SpawnAgent Depth Error**: Child agents hitting `SPAWN_AGENT_MAX_DEPTH` limit - increase or redesign task delegation

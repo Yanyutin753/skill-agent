@@ -2,7 +2,7 @@
 
 ## 概述
 
-FastAPI Agent 现在支持服务器发送事件 (SSE) 的流式输出功能，让你可以实时查看 agent 的执行过程。
+Omni Agent 现在支持服务器发送事件 (SSE) 的流式输出功能，让你可以实时查看 agent 的执行过程。
 
 ## 功能特性
 
@@ -46,7 +46,7 @@ data: {"type": "event_type", "data": {...}}
 {
   "type": "log_file",
   "data": {
-    "log_file": "/home/user/.fastapi-agent/log/agent_run_20251114_114221.log"
+    "log_file": "/home/user/.omni-agent/log/agent_run_20251114_114221.log"
   }
 }
 ```

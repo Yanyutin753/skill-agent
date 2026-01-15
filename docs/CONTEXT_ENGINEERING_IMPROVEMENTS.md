@@ -6,7 +6,7 @@
 
 ### 1. 系统提示构建
 
-#### 当前项目 (`src/fastapi_agent/core/agent.py`)
+#### 当前项目 (`src/omni_agent/core/agent.py`)
 ```python
 def __init__(self, system_prompt: str, ...):
     # 简单的字符串拼接
@@ -661,8 +661,8 @@ class ContextEnrichers:
 ## 代码示例:完整的改进版 Agent
 
 ```python
-from fastapi_agent.core.prompt_builder import SystemPromptBuilder, SystemPromptConfig
-from fastapi_agent.core.context import AgentContext, SessionManager
+from omni_agent.core.prompt_builder import SystemPromptBuilder, SystemPromptConfig
+from omni_agent.core.context import AgentContext, SessionManager
 
 # 创建配置
 prompt_config = SystemPromptConfig(

@@ -22,8 +22,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi_agent.core import Agent, LLMClient
-from fastapi_agent.sandbox import SandboxManager, SandboxToolkit
+from omni_agent.core import Agent, LLMClient
+from omni_agent.sandbox import SandboxManager, SandboxToolkit
 
 
 async def basic_sandbox_usage():

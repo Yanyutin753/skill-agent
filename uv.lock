@@ -599,80 +599,6 @@ wheels = [
 ]
 
 [[package]]
-name = "fastapi-agent"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "agent-sandbox" },
-    { name = "asyncpg" },
-    { name = "fastapi" },
-    { name = "httpx" },
-    { name = "langfuse" },
-    { name = "litellm" },
-    { name = "mcp" },
-    { name = "openai" },
-    { name = "pgvector" },
-    { name = "prompt-toolkit" },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "pypdf" },
-    { name = "python-multipart" },
-    { name = "pyyaml" },
-    { name = "tiktoken" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "httpx" },
-    { name = "mypy" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-]
-redis = [
-    { name = "redis" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pgvector" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "agent-sandbox", specifier = ">=0.0.19" },
-    { name = "asyncpg", specifier = ">=0.29.0" },
-    { name = "fastapi", specifier = ">=0.110.0" },
-    { name = "httpx", specifier = ">=0.26.0" },
-    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.26.0" },
-    { name = "langfuse", specifier = ">=2.0.0,<3.0.0" },
-    { name = "litellm", specifier = ">=1.50.0,<1.70.0" },
-    { name = "mcp", specifier = ">=1.0.0" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8.0" },
-    { name = "openai", specifier = ">=1.0.0" },
-    { name = "pgvector", specifier = ">=0.3.0" },
-    { name = "prompt-toolkit", specifier = ">=3.0.0" },
-    { name = "pydantic", specifier = ">=2.6.0" },
-    { name = "pydantic-settings", specifier = ">=2.1.0" },
-    { name = "pypdf", specifier = ">=4.0.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.1.0" },
-    { name = "python-multipart", specifier = ">=0.0.6" },
-    { name = "pyyaml", specifier = ">=6.0.1" },
-    { name = "redis", marker = "extra == 'redis'", specifier = ">=5.0.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.2.0" },
-    { name = "tiktoken", specifier = ">=0.5.0" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.27.0" },
-]
-provides-extras = ["dev", "redis"]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pgvector", specifier = ">=0.4.1" }]
-
-[[package]]
 name = "filelock"
 version = "3.20.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1468,6 +1394,80 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/b8/50/94ccd8a2b141cb50651fddd4f6a48874acb3c91c8f0842b08a6afc4b0b21/numpy-2.3.5-pp311-pypy311_pp73-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:63c0e9e7eea69588479ebf4a8a270d5ac22763cc5854e9a7eae952a3908103f7", size = 16729263, upload-time = "2025-11-16T22:52:36.369Z" },
     { url = "https://files.pythonhosted.org/packages/2d/ee/346fa473e666fe14c52fcdd19ec2424157290a032d4c41f98127bfb31ac7/numpy-2.3.5-pp311-pypy311_pp73-win_amd64.whl", hash = "sha256:f16417ec91f12f814b10bafe79ef77e70113a2f5f7018640e7425ff979253425", size = 12967213, upload-time = "2025-11-16T22:52:39.38Z" },
 ]
+
+[[package]]
+name = "omni-agent"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "agent-sandbox" },
+    { name = "asyncpg" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "langfuse" },
+    { name = "litellm" },
+    { name = "mcp" },
+    { name = "openai" },
+    { name = "pgvector" },
+    { name = "prompt-toolkit" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "pypdf" },
+    { name = "python-multipart" },
+    { name = "pyyaml" },
+    { name = "tiktoken" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "httpx" },
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+]
+redis = [
+    { name = "redis" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pgvector" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "agent-sandbox", specifier = ">=0.0.19" },
+    { name = "asyncpg", specifier = ">=0.29.0" },
+    { name = "fastapi", specifier = ">=0.110.0" },
+    { name = "httpx", specifier = ">=0.26.0" },
+    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.26.0" },
+    { name = "langfuse", specifier = ">=2.0.0,<3.0.0" },
+    { name = "litellm", specifier = ">=1.50.0,<1.70.0" },
+    { name = "mcp", specifier = ">=1.0.0" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8.0" },
+    { name = "openai", specifier = ">=1.0.0" },
+    { name = "pgvector", specifier = ">=0.3.0" },
+    { name = "prompt-toolkit", specifier = ">=3.0.0" },
+    { name = "pydantic", specifier = ">=2.6.0" },
+    { name = "pydantic-settings", specifier = ">=2.1.0" },
+    { name = "pypdf", specifier = ">=4.0.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.1.0" },
+    { name = "python-multipart", specifier = ">=0.0.6" },
+    { name = "pyyaml", specifier = ">=6.0.1" },
+    { name = "redis", marker = "extra == 'redis'", specifier = ">=5.0.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.2.0" },
+    { name = "tiktoken", specifier = ">=0.5.0" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.27.0" },
+]
+provides-extras = ["dev", "redis"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pgvector", specifier = ">=0.4.1" }]
 
 [[package]]
 name = "openai"

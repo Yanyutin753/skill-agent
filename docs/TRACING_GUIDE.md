@@ -10,7 +10,7 @@
 
 ### AgentLogger（已有）
 
-**位置**: `~/.fastapi-agent/log/agent_run_*.log`
+**位置**: `~/.omni-agent/log/agent_run_*.log`
 
 **记录内容**：
 - ✅ 单个 Agent 的 STEP、LLM 请求/响应
@@ -25,7 +25,7 @@
 
 ### TraceLogger（新增）
 
-**位置**: `~/.fastapi-agent/traces/trace_*.jsonl`
+**位置**: `~/.omni-agent/traces/trace_*.jsonl`
 
 **记录内容**：
 - ✅ 完整的工作流生命周期
@@ -41,7 +41,7 @@
 
 ```python
 # team.py
-from fastapi_agent.core.trace_logger import TraceLogger, TraceEventType
+from omni_agent.core.trace_logger import TraceLogger, TraceEventType
 
 class Team:
     def __init__(self, ...):
@@ -173,19 +173,19 @@ async def run_with_dependencies(self, tasks: List[TaskWithDependencies]):
 
 ```bash
 # 列出最近的追踪
-uv run python -m fastapi_agent.utils.trace_viewer list
+uv run python -m omni_agent.utils.trace_viewer list
 
 # 查看详细追踪
-uv run python -m fastapi_agent.utils.trace_viewer view trace_team_20251205_abc123.jsonl
+uv run python -m omni_agent.utils.trace_viewer view trace_team_20251205_abc123.jsonl
 
 # 可视化工作流
-uv run python -m fastapi_agent.utils.trace_viewer flow trace_dependency_workflow_20251205_xyz789.jsonl
+uv run python -m omni_agent.utils.trace_viewer flow trace_dependency_workflow_20251205_xyz789.jsonl
 ```
 
 ### 方法 2: Python 脚本
 
 ```python
-from fastapi_agent.utils.trace_viewer import TraceViewer
+from omni_agent.utils.trace_viewer import TraceViewer
 
 viewer = TraceViewer()
 viewer.list_traces(limit=5)
@@ -382,7 +382,7 @@ pip install langsmith
 # 在 .env 中配置
 LANGCHAIN_TRACING_V2=true
 LANGCHAIN_API_KEY=your_api_key
-LANGCHAIN_PROJECT=fastapi-agent
+LANGCHAIN_PROJECT=omni-agent
 
 # 在代码中启用
 from langsmith import Client
@@ -420,7 +420,7 @@ with client.trace(name="team_execution") as run:
 ## 日志文件结构
 
 ```
-~/.fastapi-agent/
+~/.omni-agent/
 ├── log/                           # AgentLogger 输出
 │   ├── agent_run_20251205_100000.log
 │   └── agent_run_20251205_103000.log

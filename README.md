@@ -1,16 +1,6 @@
-# FastAPI Agent
+# Omni Agent
 
 一个功能完整的 AI Agent 系统，基于 FastAPI 构建
-
-## 界面预览
-
-### 知识库管理
-![知识库页面](image.png)
-支持文档上传、智能检索（混合/语义/关键词模式）、文档管理
-
-### 对话界面
-![对话页面](image-1.png)
-ChatGPT 风格界面，支持 Thinking Process 展示、流式输出、会话管理
 
 ## 核心特性
 
@@ -54,7 +44,7 @@ ChatGPT 风格界面，支持 Thinking Process 展示、流式输出、会话管
 ```
 skill-agent/
 ├── src/
-│   └── fastapi_agent/          # 主要代码
+│   └── omni_agent/          # 主要代码
 │       ├── main.py             # FastAPI 应用入口
 │       ├── api/                # API 路由层
 │       │   ├── deps.py         # 依赖注入（MCP/Session/AgentFactory）
@@ -216,7 +206,7 @@ cp mcp.json.example mcp.json
 ```bash
 make dev
 # 或
-uv run uvicorn fastapi_agent.main:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn omni_agent.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 服务启动后，访问：
@@ -505,7 +495,7 @@ Team 系统采用 Leader-Member 模式进行任务协作：
 基于 [agent-sandbox](https://github.com/agent-infra/sandbox) 的代码隔离执行环境，每个 Session 独立沙箱：
 
 ```python
-from fastapi_agent.sandbox import SandboxManager, SandboxToolkit
+from omni_agent.sandbox import SandboxManager, SandboxToolkit
 
 manager = SandboxManager(base_url="http://localhost:8080")
 await manager.initialize()
@@ -564,7 +554,7 @@ search_knowledge(
 - **状态 Reducer**: 合并并行执行结果
 
 ```python
-from fastapi_agent.core import StateGraph, START, END, AgentNode, create_router
+from omni_agent.core import StateGraph, START, END, AgentNode, create_router
 from typing import TypedDict, Annotated
 import operator
 
@@ -604,7 +594,7 @@ result = await app.invoke({"task": "urgent fix bug", "status": "", "results": []
 **AgentNode**: 将现有 Agent 封装为图节点
 
 ```python
-from fastapi_agent.core import AgentNode
+from omni_agent.core import AgentNode
 
 researcher = AgentNode(
     name="researcher",
@@ -696,7 +686,7 @@ AGENTS.md 文件结构：
 使用方式：
 
 ```python
-from fastapi_agent.core import FileMemory, FileMemoryManager
+from omni_agent.core import FileMemory, FileMemoryManager
 
 # 创建记忆实例
 mem = FileMemory(user_id="user_001", session_id="sess_abc")
@@ -717,7 +707,7 @@ mgr.cleanup_expired(max_age_days=7)
 
 ## 功能对比
 
-| 特性 | Mini-Agent | FastAPI Agent |
+| 特性 | Mini-Agent | Omni Agent |
 |------|-----------|---------------|
 | 接口方式 | CLI | RESTful API + Web UI |
 | Token 管理 | Yes | Yes |
@@ -736,12 +726,12 @@ mgr.cleanup_expired(max_age_days=7)
 
 ### 添加新工具
 
-1. 在 `src/fastapi_agent/tools/` 创建工具文件
+1. 在 `src/omni_agent/tools/` 创建工具文件
 2. 继承 `Tool` 基类
 3. 在 `api/deps.py` 中注册
 
 ```python
-from fastapi_agent.tools.base import Tool, ToolResult
+from omni_agent.tools.base import Tool, ToolResult
 
 class MyTool(Tool):
     @property
@@ -768,7 +758,7 @@ class MyTool(Tool):
 
 ### 添加新 Skill
 
-1. 在 `src/fastapi_agent/skills/` 创建目录
+1. 在 `src/omni_agent/skills/` 创建目录
 2. 创建 `SKILL.md` 文件定义内容
 3. 自动被 `get_skill` 工具识别
 
@@ -790,21 +780,21 @@ WORKDIR /app
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 COPY . .
 RUN uv sync --frozen
-CMD ["uv", "run", "uvicorn", "fastapi_agent.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "uvicorn", "omni_agent.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
 ```bash
-docker build -t fastapi-agent .
-docker run -p 8000:8000 --env-file .env fastapi-agent
+docker build -t omni-agent .
+docker run -p 8000:8000 --env-file .env omni-agent
 ```
 
 ### systemd
 
-创建 `/etc/systemd/system/fastapi-agent.service`：
+创建 `/etc/systemd/system/omni-agent.service`：
 
 ```ini
 [Unit]
-Description=FastAPI Agent Service
+Description=Omni Agent Service
 After=network.target
 
 [Service]
@@ -812,7 +802,7 @@ Type=simple
 User=your_user
 WorkingDirectory=/path/to/skill-agent
 EnvironmentFile=/path/to/.env
-ExecStart=/home/your_user/.local/bin/uv run uvicorn fastapi_agent.main:app --host 0.0.0.0 --port 8000
+ExecStart=/home/your_user/.local/bin/uv run uvicorn omni_agent.main:app --host 0.0.0.0 --port 8000
 Restart=always
 
 [Install]
@@ -820,7 +810,7 @@ WantedBy=multi-user.target
 ```
 
 ```bash
-sudo systemctl enable fastapi-agent && sudo systemctl start fastapi-agent
+sudo systemctl enable omni-agent && sudo systemctl start omni-agent
 ```
 
 ## 可观测性与追踪
@@ -862,21 +852,21 @@ Langfuse 提供：
 
 #### AgentLogger（单 Agent 日志）
 
-Agent 执行日志保存在 `~/.fastapi-agent/log/`：
+Agent 执行日志保存在 `~/.omni-agent/log/`：
 
 ```bash
-ls -lht ~/.fastapi-agent/log/ | head -5
-cat ~/.fastapi-agent/log/agent_run_20251113_223233.log
+ls -lht ~/.omni-agent/log/ | head -5
+cat ~/.omni-agent/log/agent_run_20251113_223233.log
 ```
 
 #### TraceLogger（多 Agent 追踪）
 
-工作流追踪日志保存在 `~/.fastapi-agent/traces/`：
+工作流追踪日志保存在 `~/.omni-agent/traces/`：
 
 ```bash
-uv run python -m fastapi_agent.utils.trace_viewer list
-uv run python -m fastapi_agent.utils.trace_viewer view trace_team_20251205_abc123.jsonl
-uv run python -m fastapi_agent.utils.trace_viewer flow trace_dependency_workflow_20251205_xyz789.jsonl
+uv run python -m omni_agent.utils.trace_viewer list
+uv run python -m omni_agent.utils.trace_viewer view trace_team_20251205_abc123.jsonl
+uv run python -m omni_agent.utils.trace_viewer flow trace_dependency_workflow_20251205_xyz789.jsonl
 ```
 
 ## 故障排除

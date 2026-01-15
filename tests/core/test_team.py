@@ -3,10 +3,10 @@
 import pytest
 from unittest.mock import Mock, patch, AsyncMock
 
-from fastapi_agent.core.team import Team
-from fastapi_agent.core.llm_client import LLMClient
-from fastapi_agent.schemas.team import TeamConfig, TeamMemberConfig, TaskWithDependencies
-from fastapi_agent.tools.file_tools import ReadTool, WriteTool
+from omni_agent.core.team import Team
+from omni_agent.core.llm_client import LLMClient
+from omni_agent.schemas.team import TeamConfig, TeamMemberConfig, TaskWithDependencies
+from omni_agent.tools.file_tools import ReadTool, WriteTool
 
 
 @pytest.fixture
@@ -132,7 +132,7 @@ def test_run_member_success(llm_client, sample_team_config, available_tools):
         "steps": 3
     }
 
-    with patch("fastapi_agent.core.team.Agent") as MockAgent:
+    with patch("omni_agent.core.team.Agent") as MockAgent:
         mock_agent_instance = Mock()
         mock_agent_instance.run.return_value = mock_response
         MockAgent.return_value = mock_agent_instance
@@ -161,7 +161,7 @@ def test_run_member_with_tools(llm_client, sample_team_config, available_tools):
         "steps": 2
     }
 
-    with patch("fastapi_agent.core.team.Agent") as MockAgent:
+    with patch("omni_agent.core.team.Agent") as MockAgent:
         mock_agent_instance = Mock()
         mock_agent_instance.run.return_value = mock_response
         MockAgent.return_value = mock_agent_instance
@@ -186,7 +186,7 @@ def test_run_member_error(llm_client, sample_team_config, available_tools):
         available_tools=available_tools
     )
 
-    with patch("fastapi_agent.core.team.Agent") as MockAgent:
+    with patch("omni_agent.core.team.Agent") as MockAgent:
         MockAgent.side_effect = Exception("Agent failed")
 
         member_config = sample_team_config.members[0]
@@ -212,7 +212,7 @@ def test_team_run_integration(llm_client, sample_team_config, available_tools):
         "steps": 5
     }
 
-    with patch("fastapi_agent.core.team.Agent") as MockAgent:
+    with patch("omni_agent.core.team.Agent") as MockAgent:
         mock_agent_instance = Mock()
         mock_agent_instance.run.return_value = mock_leader_response
         MockAgent.return_value = mock_agent_instance
@@ -354,7 +354,7 @@ async def test_execute_task_with_context(llm_client, sample_team_config, availab
     }
 
     with patch.object(team, '_run_member', new_callable=AsyncMock) as mock_run_member:
-        from fastapi_agent.schemas.team import MemberRunResult
+        from omni_agent.schemas.team import MemberRunResult
         mock_run_member.return_value = MemberRunResult(
             member_name="Researcher",
             member_role="Information gathering specialist",
@@ -407,7 +407,7 @@ async def test_run_with_dependencies_success(llm_client, sample_team_config, ava
     ]
 
     with patch.object(team, '_run_member', new_callable=AsyncMock) as mock_run_member:
-        from fastapi_agent.schemas.team import MemberRunResult
+        from omni_agent.schemas.team import MemberRunResult
 
         async def mock_run_side_effect(member_config, task_desc, session_id=None):
             if "Research" in task_desc:
@@ -457,7 +457,7 @@ async def test_run_with_dependencies_failure_stops_dependents(llm_client, sample
     ]
 
     with patch.object(team, '_run_member', new_callable=AsyncMock) as mock_run_member:
-        from fastapi_agent.schemas.team import MemberRunResult
+        from omni_agent.schemas.team import MemberRunResult
         mock_run_member.return_value = MemberRunResult(
             member_name="Researcher",
             member_role="Information gathering specialist",

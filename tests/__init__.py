@@ -1,1 +1,1 @@
-"""Tests for FastAPI Agent."""
+"""Tests for Omni Agent."""

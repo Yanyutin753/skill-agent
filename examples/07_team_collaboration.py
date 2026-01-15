@@ -17,10 +17,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi_agent.core import LLMClient, WorkspaceManager
-from fastapi_agent.core.team import Team
-from fastapi_agent.schemas.team import TeamConfig, TeamMemberConfig
-from fastapi_agent.tools.file_tools import ReadTool, WriteTool, EditTool
+from omni_agent.core import LLMClient, WorkspaceManager
+from omni_agent.core.team import Team
+from omni_agent.schemas.team import TeamConfig, TeamMemberConfig
+from omni_agent.tools.file_tools import ReadTool, WriteTool, EditTool
 
 
 async def main():

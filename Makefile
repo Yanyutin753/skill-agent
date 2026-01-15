@@ -11,16 +11,16 @@ install: ## Install dependencies using uv
 	@echo "✓ Dependencies installed"
 
 dev: ## Run development server with hot reload
-	uv run uvicorn fastapi_agent.main:app --reload --host 0.0.0.0 --port 8000
+	uv run uvicorn omni_agent.main:app --reload --host 0.0.0.0 --port 8000
 
 run: ## Run production server
-	uv run uvicorn fastapi_agent.main:app --host 0.0.0.0 --port 8000
+	uv run uvicorn omni_agent.main:app --host 0.0.0.0 --port 8000
 
 test: ## Run tests with pytest
 	uv run pytest -v
 
 test-cov: ## Run tests with coverage report
-	uv run pytest -v --cov=src/fastapi_agent --cov-report=term-missing --cov-report=html
+	uv run pytest -v --cov=src/omni_agent --cov-report=term-missing --cov-report=html
 
 lint: ## Run linter (ruff check)
 	uv run ruff check .
@@ -35,7 +35,7 @@ format-check: ## Check code formatting without making changes
 	uv run ruff format --check .
 
 type-check: ## Run type checking with mypy
-	uv run mypy src/fastapi_agent
+	uv run mypy src/omni_agent
 
 check: lint format-check type-check ## Run all checks (lint, format, type)
 

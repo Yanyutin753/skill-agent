@@ -6,8 +6,8 @@ import pytest
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
 
-from fastapi_agent.core.config import Settings
-from fastapi_agent.main import app
+from omni_agent.core.config import Settings
+from omni_agent.main import app
 
 
 @pytest.fixture

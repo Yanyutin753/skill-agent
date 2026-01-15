@@ -25,8 +25,8 @@ pip install -r requirements.txt
 **方式一：配置文件**
 
 ```bash
-cp fastapi_agent/config/config-example.yaml fastapi_agent/config/config.yaml
-vim fastapi_agent/config/config.yaml
+cp omni_agent/config/config-example.yaml omni_agent/config/config.yaml
+vim omni_agent/config/config.yaml
 ```
 
 编辑配置文件，替换 `YOUR_API_KEY_HERE` 为你的实际 API Key。
@@ -48,10 +48,10 @@ export LLM_MODEL="anthropic/claude-3-5-sonnet-20241022"  # 格式: provider/mode
 
 ```bash
 # 开发模式（带热重载）
-uvicorn fastapi_agent.main:app --reload
+uvicorn omni_agent.main:app --reload
 
 # 生产模式
-python -m fastapi_agent.main
+python -m omni_agent.main
 ```
 
 服务将在 http://localhost:8000 启动。
@@ -178,7 +178,7 @@ llm:
 ```bash
 # 确保从项目根目录运行
 cd skill-agent
-python -m fastapi_agent.main
+python -m omni_agent.main
 ```
 
 ### 问题：API Key 未配置
@@ -187,7 +187,7 @@ python -m fastapi_agent.main
 
 ```bash
 # 检查配置文件
-cat fastapi_agent/config/config.yaml
+cat omni_agent/config/config.yaml
 
 # 检查环境变量
 echo $LLM_API_KEY
@@ -198,7 +198,7 @@ echo $LLM_API_KEY
 指定其他端口：
 
 ```bash
-uvicorn fastapi_agent.main:app --port 8080
+uvicorn omni_agent.main:app --port 8080
 ```
 
 ## 📚 更多信息

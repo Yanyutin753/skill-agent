@@ -1,4 +1,4 @@
-# FastAPI Agent - curl 请求示例
+# Omni Agent - curl 请求示例
 
 ## 前置条件
 
@@ -6,7 +6,7 @@
 ```bash
 make dev
 # 或
-uv run uvicorn fastapi_agent.main:app --reload
+uv run uvicorn omni_agent.main:app --reload
 ```
 
 ## 基础示例

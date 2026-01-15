@@ -417,8 +417,8 @@ class Team:
 ### 示例 1: 多轮对话
 
 ```python
-from fastapi_agent.core.team import Team, TeamSessionManager
-from fastapi_agent.schemas.team import TeamConfig, TeamMemberConfig
+from omni_agent.core.team import Team, TeamSessionManager
+from omni_agent.schemas.team import TeamConfig, TeamMemberConfig
 
 # 创建会话管理器
 session_manager = TeamSessionManager(

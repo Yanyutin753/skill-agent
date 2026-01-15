@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from fastapi_agent.core.config import Settings
+from omni_agent.core.config import Settings
 
 
 class TestModelValidation:

@@ -44,7 +44,7 @@ Team 功能允许你创建由多个专业 Agent 组成的团队,通过 Team Lead
 ### 1. 定义团队配置
 
 ```python
-from fastapi_agent.schemas.team import TeamConfig, TeamMemberConfig
+from omni_agent.schemas.team import TeamConfig, TeamMemberConfig
 
 team_config = TeamConfig(
     name="Research Team",
@@ -71,9 +71,9 @@ team_config = TeamConfig(
 ### 2. 创建并运行团队
 
 ```python
-from fastapi_agent.core.team import Team
-from fastapi_agent.core.llm_client import LLMClient
-from fastapi_agent.tools.base_tools import WriteTool
+from omni_agent.core.team import Team
+from omni_agent.core.llm_client import LLMClient
+from omni_agent.tools.base_tools import WriteTool
 
 # 创建 LLM 客户端
 llm_client = LLMClient(

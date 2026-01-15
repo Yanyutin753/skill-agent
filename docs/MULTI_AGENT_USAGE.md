@@ -28,7 +28,7 @@
 
 **示例代码**:
 ```python
-from fastapi_agent.core import Agent, AgentTeam, CoordinationStrategy
+from omni_agent.core import Agent, AgentTeam, CoordinationStrategy
 
 # 创建协调者
 coordinator = Agent(
@@ -190,7 +190,7 @@ uv run python examples/team_demo.py
 ### 自定义成员
 
 ```python
-from fastapi_agent.tools import ReadTool, WriteTool, BashTool
+from omni_agent.tools import ReadTool, WriteTool, BashTool
 
 # 创建自定义工具集
 research_tools = [ReadTool(), BashTool()]
@@ -239,7 +239,7 @@ for interaction in result.interactions:
 
 ## 日志和调试
 
-团队执行日志保存在: `~/.fastapi-agent/log/team_run_YYYYMMDD_HHMMSS.log`
+团队执行日志保存在: `~/.omni-agent/log/team_run_YYYYMMDD_HHMMSS.log`
 
 日志包含:
 - TEAM_INIT: 团队初始化

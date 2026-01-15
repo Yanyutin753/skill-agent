@@ -10,7 +10,7 @@
 
 ### 1. SystemPromptConfig 数据类
 
-创建了结构化的系统提示配置类 (`src/fastapi_agent/core/prompt_builder.py:15-59`):
+创建了结构化的系统提示配置类 (`src/omni_agent/core/prompt_builder.py:15-59`):
 
 ```python
 @dataclass
@@ -40,7 +40,7 @@ class SystemPromptConfig:
 
 ### 2. SystemPromptBuilder 类
 
-实现了结构化的系统提示构建器 (`src/fastapi_agent/core/prompt_builder.py:62-201`):
+实现了结构化的系统提示构建器 (`src/omni_agent/core/prompt_builder.py:62-201`):
 
 **核心功能:**
 - ✅ 使用 XML 标签组织信息 (`<your_role>`, `<instructions>`, etc.)
@@ -68,7 +68,7 @@ class SystemPromptConfig:
 
 ### 3. Tool Instructions 自动提取
 
-修改了 Tool 基类 (`src/fastapi_agent/tools/base.py:32-51`):
+修改了 Tool 基类 (`src/omni_agent/tools/base.py:32-51`):
 
 ```python
 class Tool:
@@ -103,7 +103,7 @@ def add_instructions_to_prompt(self) -> bool:
 
 ### 4. Agent 类集成
 
-修改了 Agent 类支持新的构建器 (`src/fastapi_agent/core/agent.py:22-135`):
+修改了 Agent 类支持新的构建器 (`src/omni_agent/core/agent.py:22-135`):
 
 **新增参数:**
 - `prompt_config: Optional[SystemPromptConfig]` - 结构化配置(新方式)
@@ -167,11 +167,11 @@ Load a skill's full content using the `get_skill` tool when needed.
 ### 方式 1: 新的结构化配置 (推荐)
 
 ```python
-from fastapi_agent.core.agent import Agent
-from fastapi_agent.core.llm_client import LLMClient
-from fastapi_agent.core.prompt_builder import SystemPromptConfig
-from fastapi_agent.skills.skill_loader import SkillLoader
-from fastapi_agent.tools.bash_tool import BashTool
+from omni_agent.core.agent import Agent
+from omni_agent.core.llm_client import LLMClient
+from omni_agent.core.prompt_builder import SystemPromptConfig
+from omni_agent.skills.skill_loader import SkillLoader
+from omni_agent.tools.bash_tool import BashTool
 
 # 加载 Skills
 skill_loader = SkillLoader(skills_dir="./skills")
@@ -292,14 +292,14 @@ Current working directory: /absolute/path
 ## 📂 文件变更清单
 
 ### 新增文件
-1. `src/fastapi_agent/core/prompt_builder.py` - 系统提示构建器
+1. `src/omni_agent/core/prompt_builder.py` - 系统提示构建器
 2. `examples/test_structured_prompt.py` - 测试和示例
 3. `docs/CONTEXT_ENGINEERING_IMPLEMENTATION.md` - 本文档
 
 ### 修改文件
-1. `src/fastapi_agent/tools/base.py` - 添加 instructions 支持
-2. `src/fastapi_agent/tools/bash_tool.py` - 添加使用说明
-3. `src/fastapi_agent/core/agent.py` - 集成新构建器
+1. `src/omni_agent/tools/base.py` - 添加 instructions 支持
+2. `src/omni_agent/tools/bash_tool.py` - 添加使用说明
+3. `src/omni_agent/core/agent.py` - 集成新构建器
 
 ### 兼容性
 - ✅ 向后兼容 - 旧代码无需修改

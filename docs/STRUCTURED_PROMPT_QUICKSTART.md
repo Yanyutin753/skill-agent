@@ -5,9 +5,9 @@
 ### 1. 基础使用
 
 ```python
-from fastapi_agent.core.agent import Agent
-from fastapi_agent.core.llm_client import LLMClient
-from fastapi_agent.core.prompt_builder import SystemPromptConfig
+from omni_agent.core.agent import Agent
+from omni_agent.core.llm_client import LLMClient
+from omni_agent.core.prompt_builder import SystemPromptConfig
 
 # 创建配置
 config = SystemPromptConfig(
@@ -33,7 +33,7 @@ agent = Agent(
 ### 2. 集成 Skills
 
 ```python
-from fastapi_agent.skills.skill_loader import SkillLoader
+from omni_agent.skills.skill_loader import SkillLoader
 
 # 加载 Skills
 skill_loader = SkillLoader(skills_dir="./skills")
@@ -51,7 +51,7 @@ agent = Agent(
 ### 3. 工具说明自动提取
 
 ```python
-from fastapi_agent.tools.base import Tool
+from omni_agent.tools.base import Tool
 
 class MyTool(Tool):
     # ... name, description, parameters ...
@@ -385,7 +385,7 @@ agent = Agent(
 
 - 完整文档: `docs/CONTEXT_ENGINEERING_IMPLEMENTATION.md`
 - 测试示例: `examples/test_structured_prompt.py`
-- API 参考: `src/fastapi_agent/core/prompt_builder.py`
+- API 参考: `src/omni_agent/core/prompt_builder.py`
 
 ## ❓ 常见问题
 

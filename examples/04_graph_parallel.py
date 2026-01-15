@@ -13,7 +13,7 @@ import operator
 import time
 from typing import Annotated, TypedDict
 
-from fastapi_agent.core import StateGraph, START, END
+from omni_agent.core import StateGraph, START, END
 
 
 class ParallelState(TypedDict):

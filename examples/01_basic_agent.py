@@ -15,9 +15,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from fastapi_agent.core import Agent, LLMClient, WorkspaceManager
-from fastapi_agent.tools.file_tools import ReadTool, WriteTool
-from fastapi_agent.tools.bash_tool import BashTool
+from omni_agent.core import Agent, LLMClient, WorkspaceManager
+from omni_agent.tools.file_tools import ReadTool, WriteTool
+from omni_agent.tools.bash_tool import BashTool
 
 
 async def main():

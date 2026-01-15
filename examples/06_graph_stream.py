@@ -10,7 +10,7 @@ Graph 流式执行示例
 import asyncio
 from typing import TypedDict
 
-from fastapi_agent.core import StateGraph, START, END
+from omni_agent.core import StateGraph, START, END
 
 
 class ProcessState(TypedDict):

@@ -17,14 +17,14 @@ except ImportError:
             def asyncio(func):
                 return func
 
-from fastapi_agent.core.agent import Agent
-from fastapi_agent.core.config import settings
-from fastapi_agent.core.llm_client import LLMClient
-from fastapi_agent.schemas.message import AgentConfig, LLMResponse, ToolCall, FunctionCall
-from fastapi_agent.tools.base import Tool, ToolResult
-from fastapi_agent.tools.spawn_agent_tool import SpawnAgentTool
-from fastapi_agent.tools.file_tools import ReadTool
-from fastapi_agent.api.deps import AgentFactory
+from omni_agent.core.agent import Agent
+from omni_agent.core.config import settings
+from omni_agent.core.llm_client import LLMClient
+from omni_agent.schemas.message import AgentConfig, LLMResponse, ToolCall, FunctionCall
+from omni_agent.tools.base import Tool, ToolResult
+from omni_agent.tools.spawn_agent_tool import SpawnAgentTool
+from omni_agent.tools.file_tools import ReadTool
+from omni_agent.api.deps import AgentFactory
 
 
 class MockReadTool(Tool):

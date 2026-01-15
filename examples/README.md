@@ -1,4 +1,4 @@
-# FastAPI Agent 示例
+# Omni Agent 示例
 
 本目录包含框架各功能的使用示例。
 
@@ -70,7 +70,7 @@ uv run python examples/08_sandbox_execution.py
 声明式图构建器，用于定义工作流：
 
 ```python
-from fastapi_agent.core import StateGraph, START, END
+from omni_agent.core import StateGraph, START, END
 
 graph = StateGraph(MyState)
 graph.add_node("step1", step1_func)
@@ -87,7 +87,7 @@ result = await app.invoke(initial_state)
 基于状态动态选择下一个节点：
 
 ```python
-from fastapi_agent.core import create_router
+from omni_agent.core import create_router
 
 router = create_router("status", {"high": "urgent", "low": "normal"})
 graph.add_conditional_edges("analyzer", router)
@@ -120,7 +120,7 @@ class State(TypedDict):
 将 Agent 封装为图节点：
 
 ```python
-from fastapi_agent.core import AgentNode
+from omni_agent.core import AgentNode
 
 node = AgentNode(
     name="researcher",

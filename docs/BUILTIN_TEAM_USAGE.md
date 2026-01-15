@@ -262,7 +262,7 @@ curl -X POST http://localhost:8000/api/v1/agent/run \
 
 ### 添加自定义 Team
 
-参考 `src/fastapi_agent/core/builtin_teams.py`：
+参考 `src/omni_agent/core/builtin_teams.py`：
 
 ```python
 def create_custom_team(llm_client, available_tools, workspace_dir):

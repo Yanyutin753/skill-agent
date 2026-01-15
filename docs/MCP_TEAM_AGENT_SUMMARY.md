@@ -8,7 +8,7 @@
 
 ### 1. Agent 类增强
 
-**文件**: `src/fastapi_agent/core/agent.py`
+**文件**: `src/omni_agent/core/agent.py`
 
 - ✅ 添加 `name` 参数支持，用于在 AgentTeam 中标识不同的 agent
 - ✅ 使 `tools` 参数可选（默认为空列表）
@@ -27,7 +27,7 @@ agent = Agent(
 
 ### 2. 工具获取函数
 
-**文件**: `src/fastapi_agent/api/deps.py`
+**文件**: `src/omni_agent/api/deps.py`
 
 - ✅ 新增 `get_tools()` 函数，提供统一的工具获取接口
 - ✅ 支持基础工具、MCP 工具和 Skills 的自动组合
@@ -41,7 +41,7 @@ def get_tools(workspace_dir: str | None = None) -> list[Tool]:
 
 ### 3. 日志工具模块
 
-**文件**: `src/fastapi_agent/utils/logger.py`
+**文件**: `src/omni_agent/utils/logger.py`
 
 - ✅ 创建全局 logger 实例
 - ✅ 配置统一的日志格式和输出
@@ -219,7 +219,7 @@ POST /api/v1/team/run
 **方法 2: 在 FastAPI 应用中直接使用**
 ```python
 # 在 FastAPI 路由处理函数中
-from fastapi_agent.api.deps import get_tools
+from omni_agent.api.deps import get_tools
 
 @app.post("/custom-team")
 async def run_custom_team():
@@ -332,10 +332,10 @@ curl -X POST "http://localhost:8000/api/v1/team/run" \
 ## 📝 文件清单
 
 ### 核心实现
-- `src/fastapi_agent/core/agent.py` - Agent 类（添加 name 支持）
-- `src/fastapi_agent/core/agent_team.py` - AgentTeam 核心类
-- `src/fastapi_agent/api/deps.py` - 依赖注入（添加 get_tools）
-- `src/fastapi_agent/utils/logger.py` - 日志工具（新建）
+- `src/omni_agent/core/agent.py` - Agent 类（添加 name 支持）
+- `src/omni_agent/core/agent_team.py` - AgentTeam 核心类
+- `src/omni_agent/api/deps.py` - 依赖注入（添加 get_tools）
+- `src/omni_agent/utils/logger.py` - 日志工具（新建）
 
 ### 示例和测试
 - `examples/team_with_mcp_demo.py` - MCP 工具演示

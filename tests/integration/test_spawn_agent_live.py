@@ -13,14 +13,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from fastapi_agent.core.agent import Agent
-from fastapi_agent.core.config import settings
-from fastapi_agent.core.llm_client import LLMClient
-from fastapi_agent.schemas.message import AgentConfig
-from fastapi_agent.tools.base import Tool, ToolResult
-from fastapi_agent.tools.spawn_agent_tool import SpawnAgentTool
-from fastapi_agent.tools.file_tools import ReadTool
-from fastapi_agent.api.deps import AgentFactory
+from omni_agent.core.agent import Agent
+from omni_agent.core.config import settings
+from omni_agent.core.llm_client import LLMClient
+from omni_agent.schemas.message import AgentConfig
+from omni_agent.tools.base import Tool, ToolResult
+from omni_agent.tools.spawn_agent_tool import SpawnAgentTool
+from omni_agent.tools.file_tools import ReadTool
+from omni_agent.api.deps import AgentFactory
 
 
 class SimpleMathTool(Tool):

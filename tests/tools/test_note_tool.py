@@ -3,7 +3,7 @@
 import json
 import pytest
 from pathlib import Path
-from fastapi_agent.tools.note_tool import SessionNoteTool, RecallNoteTool
+from omni_agent.tools.note_tool import SessionNoteTool, RecallNoteTool
 
 
 @pytest.fixture
