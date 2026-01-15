@@ -103,15 +103,16 @@ class AgentNode:
             max_steps=self.max_steps,
         )
 
-        result = await agent.run(input_message)
+        agent.add_user_message(input_message)
+        result_message, _ = await agent.run()
 
         if self.transform_output:
-            return self.transform_output(result.message, state)
+            return self.transform_output(result_message, state)
 
-        update: Dict[str, Any] = {self.output_key: result.message}
+        update: Dict[str, Any] = {self.output_key: result_message}
 
         if self.history_key:
-            update[self.history_key] = [f"[{self.name}] {result.message}"]
+            update[self.history_key] = [f"[{self.name}] {result_message}"]
 
         return update
 

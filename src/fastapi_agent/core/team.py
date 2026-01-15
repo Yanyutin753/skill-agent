@@ -8,6 +8,7 @@ from uuid import uuid4
 from fastapi_agent.core.agent import Agent
 from fastapi_agent.core.llm_client import LLMClient
 from fastapi_agent.core.run_context import RunContext
+from fastapi_agent.core.session import RunRecord
 from fastapi_agent.core.session_manager import UnifiedTeamSessionManager
 from fastapi_agent.core.trace_logger import TraceLogger, get_current_trace, set_current_trace
 from fastapi_agent.schemas.team import (
@@ -737,7 +738,8 @@ Focus on your area of expertise and provide clear, actionable responses.
             completed_tasks = [t for t in tasks if t.status == "completed"]
             final_message = f"所有任务执行完成 ({len(completed_tasks)}/{len(tasks)})\n\n执行结果:\n"
             for task in tasks:
-                final_message += f"\n[{task.id}] {task.status}: {task.result[:200]}..."
+                result_preview = (task.result or "")[:200]
+                final_message += f"\n[{task.id}] {task.status}: {result_preview}..."
 
             trace.end_trace(success=True, result=final_message)
             set_current_trace(None)
@@ -796,7 +798,7 @@ Focus on your area of expertise and provide clear, actionable responses.
     ) -> None:
         """Save dependency run results to session."""
         run_record = RunRecord(
-            run_id=self._current_run_id,
+            run_id=self._current_run_id or str(uuid4()),
             parent_run_id=None,
             runner_type="team_dependency",
             runner_name=self.config.name,

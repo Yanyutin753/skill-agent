@@ -18,14 +18,15 @@ dependencies = [
     "pyyaml>=6.0.1",
     "python-multipart>=0.0.6",
     "tiktoken>=0.5.0",
-    "mcp>=1.0.0",  # Model Context Protocol SDK
-    "asyncpg>=0.29.0",  # PostgreSQL async driver
-    "pgvector>=0.3.0",  # pgvector Python bindings
-    "pypdf>=4.0.0",  # PDF parsing
-    "openai>=1.0.0",  # For DashScope API (OpenAI compatible)
-    "litellm>=1.50.0,<1.70.0",  # Multi-provider LLM support (pinned for langfuse 2.x compatibility)
-    "prompt-toolkit>=3.0.0",  # CLI interactive REPL
-    "langfuse>=2.0.0,<3.0.0",  # LLM observability and tracing (v2.x for litellm compatibility)
+    "mcp>=1.0.0", # Model Context Protocol SDK
+    "asyncpg>=0.29.0", # PostgreSQL async driver
+    "pgvector>=0.3.0", # pgvector Python bindings
+    "pypdf>=4.0.0", # PDF parsing
+    "openai>=1.0.0", # For DashScope API (OpenAI compatible)
+    "litellm>=1.50.0,<1.70.0", # Multi-provider LLM support (pinned for langfuse 2.x compatibility)
+    "prompt-toolkit>=3.0.0", # CLI interactive REPL
+    "langfuse>=2.0.0,<3.0.0", # LLM observability and tracing (v2.x for litellm compatibility)
+    "agent-sandbox>=0.0.19",
 ]
 
 [project.scripts]

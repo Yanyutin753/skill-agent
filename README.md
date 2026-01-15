@@ -40,6 +40,7 @@ ChatGPT 风格界面，支持 Thinking Process 展示、流式输出、会话管
 - **Team 系统**: Leader-Member 多 Agent 协作，支持智能任务委派
 - **Graph 执行引擎**: LangGraph 风格的声明式工作流定义，支持并行执行、条件路由、状态 Reducer
 - **RAG 知识库**: 混合检索（语义+关键词），基于 PostgreSQL + pgvector
+- **Sandbox 沙箱隔离**: 基于 agent-sandbox，每个 Session 独立沙箱，安全执行不受信任代码
 
 ### 性能与监控
 - **Langfuse 可观测性**: 生产级 LLM 追踪，支持 Agent 执行流程、工具调用、Token 成本统计
@@ -65,20 +66,19 @@ skill-agent/
 │       │       │   └── tools.py    # 工具列表端点
 │       │       └── router.py   # 主路由
 │       ├── core/               # 核心组件
-│       │   ├── agent.py        # Agent 核心逻辑
+│       │   ├── agent.py        # Agent 核心 (含 State/Event/Hook/Loop)
 │       │   ├── team.py         # Team 多 Agent 协作
 │       │   ├── graph.py        # Graph 执行引擎（LangGraph 风格）
 │       │   ├── agent_node.py   # AgentNode/ToolNode 封装
+│       │   ├── agent_logger.py # 结构化日志系统
 │       │   ├── llm_client.py   # LLM 客户端（含流式）
 │       │   ├── config.py       # 配置管理
 │       │   ├── token_manager.py    # Token 管理与消息总结
-│       │   ├── agent_logger.py     # 结构化日志系统
 │       │   ├── file_memory.py      # AGENTS.md 文件记忆系统
 │       │   ├── session.py          # Session 数据模型
 │       │   ├── session_storage.py  # 存储后端抽象层
 │       │   ├── session_manager.py  # 统一 Session 管理器
 │       │   ├── langfuse_tracing.py # Langfuse 可观测性集成
-│       │   ├── agent_loop.py       # Agent 执行循环
 │       │   ├── prompt_builder.py   # 结构化 Prompt 构建
 │       │   ├── checkpoint.py       # 执行状态检查点
 │       │   └── trace_logger.py     # 多 Agent 工作流追踪
@@ -94,6 +94,10 @@ skill-agent/
 │       │   ├── embedding_service.py # 向量嵌入服务
 │       │   ├── document_processor.py # 文档处理
 │       │   └── rag_service.py  # RAG 服务层
+│       ├── sandbox/            # 沙箱隔离执行
+│       │   ├── manager.py      # 沙箱生命周期管理
+│       │   ├── toolkit.py      # 沙箱工具集工厂
+│       │   └── tools.py        # 沙箱版工具实现
 │       ├── skills/             # Skills 系统
 │       │   ├── skill_tool.py   # Skill 工具实现
 │       │   └── ...             # 内置 Skills
@@ -155,6 +159,12 @@ MCP_CONFIG_PATH=mcp.json
 SPAWN_AGENT_MAX_DEPTH=3      # 最大嵌套深度
 SPAWN_AGENT_DEFAULT_MAX_STEPS=15
 SPAWN_AGENT_TOKEN_LIMIT=50000
+
+# Sandbox 沙箱隔离（可选）
+ENABLE_SANDBOX=false         # 启用沙箱隔离执行
+SANDBOX_URL=http://localhost:8080  # agent-sandbox 服务地址
+SANDBOX_AUTO_START=false     # 自动启动 Docker 容器
+SANDBOX_TTL_SECONDS=3600     # 沙箱实例存活时间
 
 # Session 管理
 ENABLE_SESSION=true
@@ -489,6 +499,47 @@ Team 系统采用 Leader-Member 模式进行任务协作：
 | `coder` | 编程与技术问题 | `read`, `write`, `edit`, `bash` |
 | `reviewer` | 质量审查与反馈 | `read` |
 | `analyst` | 数据分析与洞察 | 所有工具 |
+
+### Sandbox 沙箱隔离
+
+基于 [agent-sandbox](https://github.com/agent-infra/sandbox) 的代码隔离执行环境，每个 Session 独立沙箱：
+
+```python
+from fastapi_agent.sandbox import SandboxManager, SandboxToolkit
+
+manager = SandboxManager(base_url="http://localhost:8080")
+await manager.initialize()
+
+toolkit = SandboxToolkit(manager)
+tools = await toolkit.get_tools("session-123")
+```
+
+启动沙箱容器：
+
+```bash
+docker run -d --security-opt seccomp=unconfined -p 8080:8080 ghcr.io/agent-infra/sandbox:latest
+```
+
+沙箱工具集：
+
+| 工具 | 描述 |
+|------|------|
+| `bash` | 在沙箱中执行 Shell 命令 |
+| `read_file` | 读取沙箱内文件 |
+| `write_file` | 写入沙箱内文件 |
+| `edit_file` | 编辑沙箱内文件 |
+| `list_dir` | 列出沙箱内目录 |
+| `python` | 执行 Python 代码 (Jupyter) |
+
+配置：
+
+```bash
+ENABLE_SANDBOX=true
+SANDBOX_URL=http://localhost:8080
+SANDBOX_AUTO_START=false      # 自动启动 Docker 容器
+SANDBOX_TTL_SECONDS=3600      # 沙箱实例存活时间
+SANDBOX_MAX_INSTANCES=100     # 最大沙箱数量
+```
 
 ### RAG 知识库
 
@@ -836,18 +887,21 @@ uv run python -m fastapi_agent.utils.trace_viewer flow trace_dependency_workflow
 | Token 超限 | 增加 `token_limit` 或确保 `enable_summarization=True` |
 | 模块导入错误 | 使用 `uv run` 或设置 `PYTHONPATH` 包含 `src/` |
 | RAG 搜索失败 | 检查 PostgreSQL + pgvector 配置和 DashScope API Key |
+| Sandbox 连接失败 | 确保 Docker 容器运行且端口 8080 可访问 |
 
 ## 参考资料
 
 - [FastAPI](https://fastapi.tiangolo.com/)
 - [Anthropic API](https://docs.anthropic.com/)
 - [Model Context Protocol](https://modelcontextprotocol.io/)
+- [agent-sandbox](https://github.com/agent-infra/sandbox)
 - [uv](https://github.com/astral-sh/uv)
 
 ## 详细文档
 
 - [流式输出](./docs/STREAMING.md)
 - [追踪系统指南](./docs/TRACING_GUIDE.md)
+- [Sandbox 隔离执行](./examples/08_sandbox_execution.py)
 - [前端指南](./frontend/README.md)
 - [开发指南](./CLAUDE.md)
 

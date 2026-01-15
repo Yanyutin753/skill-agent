@@ -38,6 +38,12 @@ export LLM_MODEL=anthropic/claude-3-5-sonnet-20241022
 |------|------|----------|
 | [07_team_collaboration.py](07_team_collaboration.py) | Team Leader-Member 协作 | 是 |
 
+### 沙箱隔离
+
+| 示例 | 描述 | 需要 API |
+|------|------|----------|
+| [08_sandbox_execution.py](08_sandbox_execution.py) | Sandbox 隔离执行 | 是 |
+
 ## 快速运行
 
 ```bash
@@ -51,6 +57,10 @@ uv run python examples/06_graph_stream.py
 uv run python examples/01_basic_agent.py
 uv run python examples/05_graph_agent_node.py
 uv run python examples/07_team_collaboration.py
+
+# 需要 Sandbox 容器的示例
+docker run -d --security-opt seccomp=unconfined -p 8080:8080 ghcr.io/agent-infra/sandbox:latest
+uv run python examples/08_sandbox_execution.py
 ```
 
 ## Graph 执行引擎核心概念
@@ -133,5 +143,6 @@ examples/
 ├── 04_graph_parallel.py         # 并行执行
 ├── 05_graph_agent_node.py       # AgentNode
 ├── 06_graph_stream.py           # 流式执行
-└── 07_team_collaboration.py     # Team 协作
+├── 07_team_collaboration.py     # Team 协作
+└── 08_sandbox_execution.py      # Sandbox 隔离
 ```

@@ -115,6 +115,13 @@ Uses **pydantic-settings** with `.env` file support (`core/config.py`):
 - `SPAWN_AGENT_DEFAULT_MAX_STEPS=15`: Default max steps for child agents
 - `SPAWN_AGENT_TOKEN_LIMIT=50000`: Token limit for child agents
 
+**Sandbox Settings** (when `ENABLE_SANDBOX=true`):
+- `SANDBOX_URL=http://localhost:8080`: agent-sandbox server URL
+- `SANDBOX_AUTO_START=false`: Auto-start Docker container if not running
+- `SANDBOX_DOCKER_IMAGE=ghcr.io/agent-infra/sandbox:latest`: Docker image
+- `SANDBOX_TTL_SECONDS=3600`: Sandbox instance TTL (1 hour default)
+- `SANDBOX_MAX_INSTANCES=100`: Maximum concurrent sandbox instances
+
 **Session Settings**:
 - `SESSION_BACKEND=file`: Storage backend (file, redis, postgres)
 - `SESSION_MAX_AGE_DAYS=7`: Session expiration

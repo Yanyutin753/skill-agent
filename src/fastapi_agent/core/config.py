@@ -217,6 +217,36 @@ class Settings(BaseSettings):
         description="Token limit for spawned sub-agents"
     )
 
+    # Sandbox settings
+    ENABLE_SANDBOX: bool = Field(
+        default=False,
+        description="Enable sandbox isolation for tool execution"
+    )
+    SANDBOX_URL: str = Field(
+        default="http://localhost:8080",
+        description="Sandbox server URL (agent-sandbox)"
+    )
+    SANDBOX_AUTO_START: bool = Field(
+        default=False,
+        description="Auto-start sandbox Docker container if not running"
+    )
+    SANDBOX_DOCKER_IMAGE: str = Field(
+        default="ghcr.io/agent-infra/sandbox:latest",
+        description="Docker image for sandbox container"
+    )
+    SANDBOX_TTL_SECONDS: int = Field(
+        default=3600,
+        ge=300,
+        le=86400,
+        description="Sandbox instance TTL in seconds (1 hour default)"
+    )
+    SANDBOX_MAX_INSTANCES: int = Field(
+        default=100,
+        ge=1,
+        le=1000,
+        description="Maximum concurrent sandbox instances"
+    )
+
     # System prompt
     SYSTEM_PROMPT: str = Field(
         default="""你是一个功能强大的 AI 助手。

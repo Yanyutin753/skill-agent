@@ -1,9 +1,18 @@
 """Core modules for the FastAPI Agent."""
 
-from .agent import Agent
-from .agent_events import EventEmitter, EventType, AgentEvent
-from .agent_loop import AgentLoop, LoopConfig
-from .agent_state import AgentState, AgentStatus
+from .agent import (
+    Agent,
+    AgentEvent,
+    AgentHook,
+    AgentLoop,
+    AgentState,
+    AgentStatus,
+    EventEmitter,
+    EventType,
+    HookContext,
+    HookManager,
+    LoopConfig,
+)
 from .checkpoint import (
     Checkpoint,
     CheckpointConfig,
@@ -31,6 +40,7 @@ from .workspace import WorkspaceManager, get_workspace_manager
 __all__ = [
     "Agent",
     "AgentEvent",
+    "AgentHook",
     "AgentLoop",
     "AgentNode",
     "AgentState",
@@ -48,6 +58,8 @@ __all__ = [
     "FileMemory",
     "FileMemoryManager",
     "GraphBuilder",
+    "HookContext",
+    "HookManager",
     "LLMClient",
     "LoopConfig",
     "MemoryCheckpointStorage",

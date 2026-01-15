@@ -1,9 +1,12 @@
 """Dependency injection for FastAPI endpoints."""
 
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated, Optional, TYPE_CHECKING
 
 from fastapi import Depends
+
+if TYPE_CHECKING:
+    from fastapi_agent.sandbox.manager import SandboxManager
 
 from fastapi_agent.core import Agent, LLMClient, settings
 from fastapi_agent.core.config import Settings
@@ -36,6 +39,9 @@ _mcp_tools: list[Tool] = []
 # 支持多种存储后端 (file, redis, postgres)
 _agent_session_manager: Optional[UnifiedAgentSessionManager] = None
 _team_session_manager: Optional[UnifiedTeamSessionManager] = None
+
+# Global sandbox manager (loaded at startup when ENABLE_SANDBOX=true)
+_sandbox_manager: Optional["SandboxManager"] = None
 
 
 def get_settings() -> Settings:
@@ -275,6 +281,61 @@ def get_session_manager() -> Optional[UnifiedTeamSessionManager]:
     return _team_session_manager
 
 
+async def initialize_sandbox_manager() -> None:
+    """Initialize sandbox manager at application startup.
+
+    This function is called during FastAPI lifespan startup when
+    ENABLE_SANDBOX is true. Creates a SandboxManager instance that
+    manages one sandbox per session.
+    """
+    global _sandbox_manager
+
+    if not settings.ENABLE_SANDBOX:
+        print("ℹ️  Sandbox integration disabled")
+        return
+
+    try:
+        from fastapi_agent.sandbox.manager import SandboxManager
+
+        _sandbox_manager = SandboxManager(
+            base_url=settings.SANDBOX_URL,
+            auto_start_docker=settings.SANDBOX_AUTO_START,
+            docker_image=settings.SANDBOX_DOCKER_IMAGE,
+            ttl_seconds=settings.SANDBOX_TTL_SECONDS,
+            max_sandboxes=settings.SANDBOX_MAX_INSTANCES,
+        )
+        await _sandbox_manager.initialize()
+        print(f"✅ Sandbox manager initialized: {settings.SANDBOX_URL}")
+    except ImportError:
+        print("❌ agent-sandbox not installed. Run: uv add agent-sandbox")
+        print("⚠️  Sandbox integration disabled")
+    except Exception as e:
+        import traceback
+        print(f"❌ Error during sandbox initialization: {e}")
+        print(traceback.format_exc())
+
+
+async def cleanup_sandbox_manager() -> None:
+    """Cleanup sandbox manager at application shutdown."""
+    global _sandbox_manager
+
+    if _sandbox_manager is None:
+        return
+
+    print("🧹 Cleaning up sandbox manager...")
+    await _sandbox_manager.shutdown()
+    _sandbox_manager = None
+
+
+def get_sandbox_manager() -> Optional["SandboxManager"]:
+    """Get global sandbox manager instance.
+
+    Returns:
+        SandboxManager instance or None if disabled
+    """
+    return _sandbox_manager
+
+
 def get_tools(workspace_dir: str | None = None) -> list[Tool]:
     """Get all available tools including base tools, MCP tools, and skill tools.
 
@@ -407,8 +468,8 @@ class AgentFactory:
         workspace_manager = get_workspace_manager(base_workspace)
         workspace_path = workspace_manager.get_session_workspace(session_id)
 
-        # Build tool list based on configuration
-        tools = await self._build_tools(config, str(workspace_path))
+        # Build tool list based on configuration (pass session_id for sandbox isolation)
+        tools = await self._build_tools(config, str(workspace_path), session_id)
 
         # Add SpawnAgentTool if enabled (must be done after other tools are built)
         tools = self._add_spawn_agent_tool(
@@ -443,12 +504,18 @@ class AgentFactory:
             enable_summarization=enable_summarization,
         )
 
-    async def _build_tools(self, config: "AgentConfig", workspace_dir: str) -> list[Tool]:
+    async def _build_tools(
+        self,
+        config: "AgentConfig",
+        workspace_dir: str,
+        session_id: Optional[str] = None,
+    ) -> list[Tool]:
         """Build tool list based on configuration.
 
         Args:
             config: Agent configuration
             workspace_dir: Workspace directory path
+            session_id: Session ID for sandbox isolation
 
         Returns:
             List of configured tools
@@ -457,21 +524,38 @@ class AgentFactory:
 
         tools = []
 
-        # Base tools (deepagents-style filesystem tools)
+        # Check if sandbox should be used
+        use_sandbox = (
+            self.settings.ENABLE_SANDBOX
+            and _sandbox_manager is not None
+            and session_id is not None
+        )
+
+        # Base tools - use sandbox tools if enabled, otherwise local tools
         enable_base = config.enable_base_tools if config.enable_base_tools is not None else True
         if enable_base:
-            all_base_tools = [
-                ReadTool(workspace_dir=workspace_dir),
-                WriteTool(workspace_dir=workspace_dir),
-                EditTool(workspace_dir=workspace_dir),
-                ListDirTool(workspace_dir=workspace_dir),
-                GlobTool(workspace_dir=workspace_dir),
-                GrepTool(workspace_dir=workspace_dir),
-                BashTool(),
-                SessionNoteTool(memory_file=str(Path(workspace_dir) / ".agent_memory.json")),
-                RecallNoteTool(memory_file=str(Path(workspace_dir) / ".agent_memory.json")),
-                GetUserInputTool(),
-            ]
+            if use_sandbox:
+                from fastapi_agent.sandbox.toolkit import SandboxToolkit
+                toolkit = SandboxToolkit(_sandbox_manager)
+                sandbox_tools = await toolkit.get_tools(session_id)
+                all_base_tools = sandbox_tools + [
+                    SessionNoteTool(memory_file=str(Path(workspace_dir) / ".agent_memory.json")),
+                    RecallNoteTool(memory_file=str(Path(workspace_dir) / ".agent_memory.json")),
+                    GetUserInputTool(),
+                ]
+            else:
+                all_base_tools = [
+                    ReadTool(workspace_dir=workspace_dir),
+                    WriteTool(workspace_dir=workspace_dir),
+                    EditTool(workspace_dir=workspace_dir),
+                    ListDirTool(workspace_dir=workspace_dir),
+                    GlobTool(workspace_dir=workspace_dir),
+                    GrepTool(workspace_dir=workspace_dir),
+                    BashTool(),
+                    SessionNoteTool(memory_file=str(Path(workspace_dir) / ".agent_memory.json")),
+                    RecallNoteTool(memory_file=str(Path(workspace_dir) / ".agent_memory.json")),
+                    GetUserInputTool(),
+                ]
 
             # Build tool name mapping (supports both actual names and short aliases)
             base_tools_map = {}

@@ -13,7 +13,9 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from fastapi_agent.api.deps import (
     cleanup_mcp_tools,
+    cleanup_sandbox_manager,
     initialize_mcp_tools,
+    initialize_sandbox_manager,
     initialize_session_manager,
 )
 from fastapi_agent.api.v1.router import api_router, health_router
@@ -39,6 +41,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     print(f"MCP Enabled: {settings.ENABLE_MCP}")
     print(f"RAG Enabled: {settings.ENABLE_RAG}")
     print(f"Session Enabled: {settings.ENABLE_SESSION}")
+    print(f"Sandbox Enabled: {settings.ENABLE_SANDBOX}")
     print("=" * 50)
 
     # Initialize MCP tools
@@ -46,6 +49,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Initialize session manager
     await initialize_session_manager()
+
+    # Initialize sandbox manager
+    await initialize_sandbox_manager()
 
     # Initialize RAG service
     if settings.ENABLE_RAG:
@@ -69,6 +75,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Cleanup MCP connections
     await cleanup_mcp_tools()
+
+    # Cleanup sandbox manager
+    await cleanup_sandbox_manager()
 
     # Cleanup RAG service
     if settings.ENABLE_RAG:
