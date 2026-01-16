@@ -42,6 +42,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     print(f"RAG Enabled: {settings.ENABLE_RAG}")
     print(f"Session Enabled: {settings.ENABLE_SESSION}")
     print(f"Sandbox Enabled: {settings.ENABLE_SANDBOX}")
+    print(f"ACP Enabled: {settings.ENABLE_ACP}")
     print("=" * 50)
 
     # Initialize MCP tools

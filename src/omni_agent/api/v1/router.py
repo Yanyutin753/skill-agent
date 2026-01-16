@@ -2,7 +2,8 @@
 
 from fastapi import APIRouter
 
-from omni_agent.api.v1.endpoints import agent, health, knowledge, team, tools, trace
+from omni_agent.api.v1.endpoints import agent, health, knowledge, team, tools, trace, acp
+from omni_agent.core.config import settings
 
 api_router = APIRouter()
 
@@ -12,6 +13,10 @@ api_router.include_router(team.router, tags=["team"])
 api_router.include_router(tools.router, prefix="/tools", tags=["tools"])
 api_router.include_router(knowledge.router, prefix="/knowledge", tags=["knowledge"])
 api_router.include_router(trace.router, prefix="/trace", tags=["trace"])
+
+# ACP (Agent Client Protocol) endpoints
+if settings.ENABLE_ACP:
+    api_router.include_router(acp.router, tags=["acp"])
 
 # Health endpoint at root level (not versioned)
 health_router = APIRouter()

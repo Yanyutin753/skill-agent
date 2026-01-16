@@ -31,6 +31,7 @@
 - **Graph 执行引擎**: LangGraph 风格的声明式工作流定义，支持并行执行、条件路由、状态 Reducer
 - **RAG 知识库**: 混合检索（语义+关键词），基于 PostgreSQL + pgvector
 - **Sandbox 沙箱隔离**: 基于 agent-sandbox，每个 Session 独立沙箱，安全执行不受信任代码
+- **ACP 协议支持**: 实现 Zed Agent Client Protocol，支持代码编辑器集成
 
 ### 性能与监控
 - **Langfuse 可观测性**: 生产级 LLM 追踪，支持 Agent 执行流程、工具调用、Token 成本统计
@@ -149,6 +150,9 @@ MCP_CONFIG_PATH=mcp.json
 SPAWN_AGENT_MAX_DEPTH=3      # 最大嵌套深度
 SPAWN_AGENT_DEFAULT_MAX_STEPS=15
 SPAWN_AGENT_TOKEN_LIMIT=50000
+
+# ACP 协议（代码编辑器集成）
+ENABLE_ACP=true              # 启用 ACP 端点
 
 # Sandbox 沙箱隔离（可选）
 ENABLE_SANDBOX=false         # 启用沙箱隔离执行
@@ -401,6 +405,95 @@ asyncio.run(run_agent())
 
 搜索知识库（支持 hybrid/semantic/keyword 模式）。
 
+### ACP 端点 (Agent Client Protocol)
+
+ACP 端点实现 [Zed Agent Client Protocol](https://agentclientprotocol.com/)，支持代码编辑器集成。
+
+#### `POST /api/v1/acp/agent/initialize`
+
+初始化 ACP 连接，协商协议能力。
+
+```json
+// 请求 (JSON-RPC 2.0)
+{
+  "jsonrpc": "2.0",
+  "id": 0,
+  "method": "agent/initialize",
+  "params": {
+    "protocolVersion": "1.0",
+    "clientInfo": {"name": "MyEditor", "version": "1.0.0"}
+  }
+}
+
+// 响应
+{
+  "jsonrpc": "2.0",
+  "id": 0,
+  "result": {
+    "protocolVersion": 1,
+    "agentCapabilities": {
+      "loadSession": true,
+      "promptCapabilities": {"image": false, "embeddedContext": true},
+      "mcp": {"http": true, "sse": true}
+    },
+    "agentInfo": {"name": "omni-agent", "version": "0.1.0"}
+  }
+}
+```
+
+#### `POST /api/v1/acp/session/new`
+
+创建新会话。
+
+```json
+// 请求
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "session/new",
+  "params": {
+    "cwd": "/path/to/project",
+    "mcpServers": []
+  }
+}
+
+// 响应
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {"sessionId": "sess_abc123def456"}
+}
+```
+
+#### `POST /api/v1/acp/session/prompt`
+
+发送用户提示（同步模式）。
+
+```json
+// 请求
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "session/prompt",
+  "params": {
+    "sessionId": "sess_abc123def456",
+    "prompt": [
+      {"type": "text", "text": "分析这段代码的问题"}
+    ]
+  }
+}
+```
+
+#### `POST /api/v1/acp/session/prompt/stream`
+
+发送用户提示（流式模式），返回 SSE 事件流。
+
+事件类型：
+- `session/update` (sessionUpdate: `agent_thought_chunk`) - Agent 思考过程
+- `session/update` (sessionUpdate: `agent_message_chunk`) - Agent 回复内容
+- `session/update` (sessionUpdate: `tool_call`) - 工具调用开始
+- `session/update` (sessionUpdate: `tool_call_update`) - 工具调用更新
+
 ### 其他端点
 
 - `GET /api/v1/tools/` - 列出所有可用工具
@@ -437,7 +530,7 @@ asyncio.run(run_agent())
 
 ### Skills 专家系统
 
-内置 Skills: `mcp-builder`, `document-skills`, `web-tools`, `webapp-testing`, `web-spider` (Firecrawl) 等。
+内置 Skills: `mcp-builder`, `document-skills`, `web-tools`, `webapp-testing`, `web-spider` (Firecrawl), `travel-planner` 等。
 
 ## 核心功能详解
 
@@ -617,6 +710,125 @@ EMBEDDING_DIMENSION=1024
 CHUNK_SIZE=500
 RAG_TOP_K=5
 ```
+
+### ACP 协议集成
+
+实现 [Zed Agent Client Protocol](https://agentclientprotocol.com/)，支持代码编辑器与 Agent 的标准化通信。基于官方 [agent-client-protocol](https://github.com/agentclientprotocol/python-sdk) Python SDK 实现。
+
+```bash
+# 配置
+ENABLE_ACP=true
+```
+
+#### 支持的后端
+
+| 后端 | CLI 命令 | ACP 参数 | 说明 |
+|------|----------|----------|------|
+| Claude | `claude` | `--experimental-acp` | Anthropic Claude Code |
+| Codex | `codex` | `--experimental-acp` | OpenAI Codex CLI |
+| Qwen | `npx @qwen-code/qwen-code` | `--experimental-acp` | 通义千问 |
+| Goose | `goose` | `acp` (子命令) | Block's Goose |
+| Auggie | `auggie` | `--acp` | Augment Code |
+| Kimi | `kimi` | `--acp` | Moonshot Kimi |
+| OpenCode | `opencode` | `acp` (子命令) | OpenCode CLI |
+| iFlow | `iflow` | `--experimental-acp` | iFlow CLI |
+
+#### 多后端客户端
+
+```python
+import asyncio
+from omni_agent.acp import AcpClient, MessageEvent, run_prompt
+
+# 方式一：使用 AcpClient 类
+async def example_client():
+    async with AcpClient(backend="claude", workspace="/path/to/project") as client:
+        client.handler.set_event_callback(lambda e: print(e.text) if isinstance(e, MessageEvent) else None)
+        await client.prompt("What is 2 + 2?")
+
+# 方式二：简单 API
+async def example_simple():
+    result = await run_prompt(
+        backend="codex",
+        prompt="Write hello world in Python",
+        auto_approve=True,
+    )
+    print(result)
+
+asyncio.run(example_client())
+```
+
+示例脚本：
+
+```bash
+# 列出可用后端
+uv run python examples/acp/multi_backend.py --list
+
+# 使用特定后端
+uv run python examples/acp/multi_backend.py --backend claude
+uv run python examples/acp/multi_backend.py --backend codex -p "Hello"
+uv run python examples/acp/multi_backend.py --backend qwen
+
+# 流式输出
+uv run python examples/acp/streaming_example.py --backend claude
+```
+
+#### 使用方式
+
+**1. Stdio 模式（推荐，用于编辑器集成）**
+
+```bash
+# 直接运行 ACP 服务
+omni-agent-acp --workspace /path/to/project
+
+# 或通过模块运行
+uv run python -m omni_agent.acp.acp_server --workspace /path/to/project
+```
+
+在编辑器（如 Zed）中配置自定义 Agent：
+
+```json
+{
+  "assistant": {
+    "custom_agents": [
+      {
+        "name": "omni-agent",
+        "command": "omni-agent-acp",
+        "args": ["--workspace", "${workspace}"]
+      }
+    ]
+  }
+}
+```
+
+**2. HTTP 模式（用于 Web 集成）**
+
+启动服务后访问 `/api/v1/acp/*` 端点（见下文 API 端点章节）。
+
+协议特性：
+- **JSON-RPC 2.0**: 标准化的请求/响应格式
+- **会话管理**: 创建、管理、取消会话
+- **流式更新**: 实时推送思考过程、工具调用、消息内容
+- **工具调用追踪**: 详细的工具执行状态和结果
+
+支持的 Session Updates：
+
+| 类型 | 说明 |
+|------|------|
+| `agent_thought_chunk` | Agent 思考过程（实时流） |
+| `agent_message_chunk` | Agent 回复内容（实时流） |
+| `tool_call` | 工具调用开始 |
+| `tool_call_update` | 工具调用状态更新 |
+| `plan` | 执行计划（TODO 列表） |
+
+工具类型映射：
+
+| 内部工具 | ACP ToolKind |
+|----------|--------------|
+| `read_file` | `read` |
+| `write_file`, `edit_file` | `edit` |
+| `bash` | `execute` |
+| `web_search` | `fetch` |
+| `search_knowledge` | `search` |
 
 ### Token 管理
 

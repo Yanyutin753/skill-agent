@@ -1,0 +1,100 @@
+"""ACP (Agent Client Protocol) integration module.
+
+Implements Zed's Agent Client Protocol for standardized communication
+between code editors and coding agents.
+
+Protocol spec: https://agentclientprotocol.com/
+GitHub: https://github.com/zed-industries/agent-client-protocol
+"""
+
+from omni_agent.acp.schemas import (
+    JsonRpcRequest,
+    JsonRpcResponse,
+    JsonRpcError,
+    ClientCapabilities,
+    AgentCapabilities,
+    AgentInfo,
+    InitializeRequest,
+    InitializeResponse,
+    SessionNewRequest,
+    SessionNewResponse,
+    SessionPromptRequest,
+    SessionPromptResponse,
+    SessionUpdate,
+    SessionUpdateType,
+    ContentBlock,
+    ToolCall,
+    ToolCallUpdate,
+    ToolKind,
+    ToolCallStatus,
+    Plan,
+    PlanEntry,
+    StopReason,
+)
+from omni_agent.acp.adapter import ACPAdapter
+from omni_agent.acp.backends import (
+    AcpBackendId,
+    AcpBackendConfig,
+    ACP_BACKENDS,
+    get_backend_config,
+    get_enabled_backends,
+    get_cli_args,
+)
+from omni_agent.acp.client import (
+    AcpClient,
+    AcpEvent,
+    MessageEvent,
+    ThoughtEvent,
+    ToolCallEvent,
+    ToolProgressEvent,
+    PermissionRequestEvent,
+    SessionHandler,
+    AutoApproveHandler,
+    InteractiveHandler,
+    run_prompt,
+    stream_prompt,
+)
+
+__all__ = [
+    "JsonRpcRequest",
+    "JsonRpcResponse",
+    "JsonRpcError",
+    "ClientCapabilities",
+    "AgentCapabilities",
+    "AgentInfo",
+    "InitializeRequest",
+    "InitializeResponse",
+    "SessionNewRequest",
+    "SessionNewResponse",
+    "SessionPromptRequest",
+    "SessionPromptResponse",
+    "SessionUpdate",
+    "SessionUpdateType",
+    "ContentBlock",
+    "ToolCall",
+    "ToolCallUpdate",
+    "ToolKind",
+    "ToolCallStatus",
+    "Plan",
+    "PlanEntry",
+    "StopReason",
+    "ACPAdapter",
+    "AcpBackendId",
+    "AcpBackendConfig",
+    "ACP_BACKENDS",
+    "get_backend_config",
+    "get_enabled_backends",
+    "get_cli_args",
+    "AcpClient",
+    "AcpEvent",
+    "MessageEvent",
+    "ThoughtEvent",
+    "ToolCallEvent",
+    "ToolProgressEvent",
+    "PermissionRequestEvent",
+    "SessionHandler",
+    "AutoApproveHandler",
+    "InteractiveHandler",
+    "run_prompt",
+    "stream_prompt",
+]

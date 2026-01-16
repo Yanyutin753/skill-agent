@@ -115,6 +115,9 @@ Uses **pydantic-settings** with `.env` file support (`core/config.py`):
 - `SPAWN_AGENT_DEFAULT_MAX_STEPS=15`: Default max steps for child agents
 - `SPAWN_AGENT_TOKEN_LIMIT=50000`: Token limit for child agents
 
+**ACP Settings** (Agent Client Protocol):
+- `ENABLE_ACP=true`: Enable ACP protocol endpoints for code editor integration
+
 **Sandbox Settings** (when `ENABLE_SANDBOX=true`):
 - `SANDBOX_URL=http://localhost:8080`: agent-sandbox server URL
 - `SANDBOX_AUTO_START=false`: Auto-start Docker container if not running
@@ -178,6 +181,31 @@ skills/my-skill/
 2. Verify `mcp.json` exists and is valid JSON
 3. Check startup logs for MCP initialization messages
 4. Debug logs written to `/tmp/mcp_init_debug.log`
+
+### ACP Integration (Agent Client Protocol)
+
+**Location**: `src/omni_agent/acp/`
+
+Implements [Zed Agent Client Protocol](https://agentclientprotocol.com/) for code editor integration.
+
+**Architecture**:
+- `schemas.py`: JSON-RPC 2.0, Session, ToolCall, ContentBlock data models
+- `adapter.py`: Converts between ACP and internal message formats
+- `api/v1/endpoints/acp.py`: HTTP endpoints for ACP protocol
+
+**Endpoints** (when `ENABLE_ACP=true`):
+- `POST /api/v1/acp/agent/initialize`: Initialize connection, negotiate capabilities
+- `POST /api/v1/acp/session/new`: Create new session
+- `POST /api/v1/acp/session/prompt`: Process user prompt (sync)
+- `POST /api/v1/acp/session/prompt/stream`: Process user prompt (streaming SSE)
+- `POST /api/v1/acp/session/cancel`: Cancel session operation
+
+**Session Updates** (streaming events):
+- `agent_thought_chunk`: LLM thinking process
+- `agent_message_chunk`: Agent response content
+- `tool_call`: Tool invocation start
+- `tool_call_update`: Tool execution status/result
+- `plan`: Execution plan (TODO list)
 
 ### Multi-LLM Provider Support
 

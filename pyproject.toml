@@ -27,10 +27,12 @@ dependencies = [
     "prompt-toolkit>=3.0.0", # CLI interactive REPL
     "langfuse>=2.0.0,<3.0.0", # LLM observability and tracing (v2.x for litellm compatibility)
     "agent-sandbox>=0.0.19",
+    "agent-client-protocol>=0.7.0",
 ]
 
 [project.scripts]
 omni-agent = "omni_agent.cli.main:main"
+omni-agent-acp = "omni_agent.acp.acp_server:run"
 
 [project.optional-dependencies]
 dev = [

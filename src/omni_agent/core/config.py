@@ -217,6 +217,12 @@ class Settings(BaseSettings):
         description="Token limit for spawned sub-agents"
     )
 
+    # ACP (Agent Client Protocol) settings
+    ENABLE_ACP: bool = Field(
+        default=True,
+        description="Enable ACP protocol endpoints for code editor integration"
+    )
+
     # Sandbox settings
     ENABLE_SANDBOX: bool = Field(
         default=False,
