@@ -1,5 +1,4 @@
-"""Sandbox-based tools for isolated execution."""
-
+"""基于沙箱的工具，用于隔离执行。"""
 from typing import Any, Optional
 
 from omni_agent.tools.base import Tool, ToolResult
@@ -7,7 +6,7 @@ from omni_agent.sandbox.manager import SandboxInstance
 
 
 class SandboxShellTool(Tool):
-    """Execute shell commands in sandbox environment."""
+    """在沙箱环境中执行 shell 命令。"""
 
     def __init__(self, sandbox: SandboxInstance) -> None:
         self._sandbox = sandbox
@@ -53,7 +52,7 @@ class SandboxShellTool(Tool):
 
 
 class SandboxReadTool(Tool):
-    """Read files from sandbox filesystem."""
+    """从沙箱文件系统读取文件。"""
 
     def __init__(self, sandbox: SandboxInstance) -> None:
         self._sandbox = sandbox
@@ -89,7 +88,7 @@ class SandboxReadTool(Tool):
 
 
 class SandboxWriteTool(Tool):
-    """Write files to sandbox filesystem."""
+    """向沙箱文件系统写入文件。"""
 
     def __init__(self, sandbox: SandboxInstance) -> None:
         self._sandbox = sandbox
@@ -128,7 +127,7 @@ class SandboxWriteTool(Tool):
 
 
 class SandboxEditTool(Tool):
-    """Edit files in sandbox using string replacement."""
+    """使用字符串替换在沙箱中编辑文件。"""
 
     def __init__(self, sandbox: SandboxInstance) -> None:
         self._sandbox = sandbox
@@ -188,7 +187,7 @@ class SandboxEditTool(Tool):
 
 
 class SandboxJupyterTool(Tool):
-    """Execute Python code in Jupyter kernel within sandbox."""
+    """在沙箱内的 Jupyter 内核中执行 Python 代码。"""
 
     def __init__(self, sandbox: SandboxInstance) -> None:
         self._sandbox = sandbox
@@ -227,7 +226,7 @@ class SandboxJupyterTool(Tool):
 
 
 class SandboxListDirTool(Tool):
-    """List directory contents in sandbox."""
+    """列出沙箱中的目录内容。"""
 
     def __init__(self, sandbox: SandboxInstance) -> None:
         self._sandbox = sandbox

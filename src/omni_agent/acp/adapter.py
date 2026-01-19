@@ -1,5 +1,4 @@
-"""ACP Adapter for converting between ACP and internal message formats."""
-
+"""ACP 适配器，用于在 ACP 和内部消息格式之间转换。"""
 from typing import Any, Optional
 from uuid import uuid4
 
@@ -38,7 +37,7 @@ TOOL_NAME_TO_KIND: dict[str, ToolKind] = {
 
 
 class ACPAdapter:
-    """Adapter for converting between ACP protocol and internal formats."""
+    """用于在 ACP 协议和内部格式之间转换的适配器。"""
 
     @staticmethod
     def create_initialize_response(

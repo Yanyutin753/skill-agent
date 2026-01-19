@@ -1,8 +1,7 @@
-"""Agent Node - Wrap Agent as a graph node.
+"""Agent 节点 - 将 Agent 包装为图节点。
 
 Enables using existing Agent instances as nodes in StateGraph workflows.
 """
-
 import logging
 from typing import Any, Callable, Dict, List, Optional
 

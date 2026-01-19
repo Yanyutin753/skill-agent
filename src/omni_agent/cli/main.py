@@ -1,4 +1,4 @@
-"""Omni Agent CLI - Interactive REPL with streaming output.
+"""Omni Agent CLI - 交互式 REPL，支持流式输出。
 
 Usage:
     omni-agent [OPTIONS]
@@ -11,7 +11,6 @@ Options:
     --version, -v          Show version
     --help, -h             Show help
 """
-
 import argparse
 import asyncio
 import sys

@@ -1,7 +1,33 @@
-"""
-Structured System Prompt Builder
+"""结构化系统提示构建器.
 
-构建结构化的系统提示,支持多层次上下文组织,参考 agno 的实现。
+构建结构化的系统提示，支持多层次上下文组织，参考 agno 的实现。
+
+设计原则:
+    - 使用 XML 标签组织提示结构，提高 LLM 解析准确性
+    - 支持渐进式内容披露（Progressive Disclosure）
+    - 配置与构建分离，便于复用
+
+章节构建顺序:
+    1. Agent 名称和描述
+    2. 角色定义 (<your_role>)
+    3. 指令列表 (<instructions>)
+    4. Markdown 格式化说明 (<output_format>)
+    5. 工具使用说明 (<tool_usage_guidelines>)
+    6. Skills 元数据
+    7. 期望输出格式 (<expected_output>)
+    8. 工作空间信息 (<workspace_info>)
+    9. 时间信息 (<current_datetime>)
+    10. 额外信息 (<additional_information>)
+    11. 自定义章节
+    12. 额外上下文
+
+使用示例:
+    config = SystemPromptConfig(
+        name="Code Assistant",
+        role="You are a helpful coding assistant.",
+        instructions=["Write clean code", "Follow best practices"],
+    )
+    prompt = build_system_prompt(config, workspace_dir=Path("./workspace"))
 """
 
 from dataclasses import dataclass, field
@@ -60,7 +86,11 @@ class SystemPromptConfig:
 
 
 class SystemPromptBuilder:
-    """构建结构化的系统提示."""
+    """构建结构化的系统提示.
+
+    使用构建器模式，按照预定义顺序组装各个章节。
+    每个章节使用 XML 标签包裹，便于 LLM 理解结构。
+    """
 
     def __init__(self):
         self.sections: List[str] = []
@@ -74,10 +104,12 @@ class SystemPromptBuilder:
     ) -> str:
         """构建系统提示.
 
+        按照固定顺序构建各个章节，最后用双换行符连接。
+
         Args:
             config: 系统提示配置
-            workspace_dir: 工作空间目录
-            skill_loader: Skill 加载器(用于注入 skills 元数据)
+            workspace_dir: 工作空间目录，用于生成工作空间信息
+            skill_loader: Skill 加载器，用于注入 skills 元数据（渐进式披露 Level 1）
             tool_instructions: 工具使用说明列表
 
         Returns:
@@ -85,63 +117,49 @@ class SystemPromptBuilder:
         """
         self.sections = []
 
-        # 1. Agent 名称
         if config.name:
             self.sections.append(f"# {config.name}\n")
 
-        # 2. Agent 描述
         if config.description:
             self.sections.append(config.description)
 
-        # 3. 角色定义
         if config.role:
             self.sections.append(self._build_role_section(config.role))
 
-        # 4. 指令列表
         if config.instructions:
             self.sections.append(self._build_instructions_section(config.instructions))
 
-        # 5. Markdown 格式化说明
         if config.markdown:
             self.sections.append(self._build_markdown_section())
 
-        # 6. 工具使用说明
         if tool_instructions:
             self.sections.append(self._build_tool_instructions_section(tool_instructions))
 
-        # 7. Skills 元数据 (Progressive Disclosure Level 1)
         if skill_loader:
             skills_metadata = skill_loader.get_skills_metadata_prompt()
             if skills_metadata:
                 self.sections.append(skills_metadata)
 
-        # 8. 期望输出格式
         if config.expected_output:
             self.sections.append(self._build_expected_output_section(config.expected_output))
 
-        # 9. 工作空间信息
         if config.add_workspace_info and workspace_dir:
             self.sections.append(self._build_workspace_section(workspace_dir))
 
-        # 10. 时间信息
         if config.add_datetime_to_context:
             self.sections.append(self._build_datetime_section(config.timezone))
 
-        # 11. 额外信息列表
         if config.additional_information:
             self.sections.append(
                 self._build_additional_info_section(config.additional_information)
             )
 
-        # 12. 自定义章节
         for tag_name, content in config.custom_sections.items():
             self.sections.append(f"<{tag_name}>\n{content}\n</{tag_name}>")
 
-        # 13. 额外上下文
         if config.additional_context:
             self.sections.append(config.additional_context)
 
-        # 拼接所有章节
         return "\n\n".join(self.sections)
 
     def _build_role_section(self, role: str) -> str:

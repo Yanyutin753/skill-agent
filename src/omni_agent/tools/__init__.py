@@ -1,5 +1,4 @@
-"""Tools for Omni Agent."""
-
+"""Omni Agent 的工具。"""
 from .base import Tool, ToolResult
 from .file_tools import (
     ReadTool,

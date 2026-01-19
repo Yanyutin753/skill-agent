@@ -1,5 +1,4 @@
-"""Token management for message history with automatic summarization."""
-
+"""令牌管理，用于消息历史，支持自动摘要。"""
 import logging
 from typing import Any
 

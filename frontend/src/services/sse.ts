@@ -1,4 +1,4 @@
-// Server-Sent Events (SSE) client for streaming agent output
+// 用于流式传输 agent 输出的 SSE 客户端
 import type { AgentRequest, StreamEvent } from '@/types/agent';
 
 export class SSEClient {
@@ -9,7 +9,7 @@ export class SSEClient {
     onEvent: (event: StreamEvent) => void,
     onError?: (error: Error) => void
   ): Promise<void> {
-    // Create abort controller for cancellation
+    // 创建中止控制器，用于取消请求
     this.controller = new AbortController();
 
     try {
@@ -41,28 +41,28 @@ export class SSEClient {
           break;
         }
 
-        // Decode chunk and add to buffer
+        // 解码数据块并追加到缓冲区
         buffer += decoder.decode(value, { stream: true });
 
-        // Split by newline
+        // 按换行拆分
         const lines = buffer.split('\n');
 
-        // Keep last incomplete line in buffer
+        // 保留最后一行的未完整部分
         buffer = lines.pop() || '';
 
-        // Process complete lines
+        // 处理完整行
         for (const line of lines) {
           if (!line.trim()) continue;
 
-          // Parse SSE format: "data: {...}"
+          // 解析 SSE 格式："data: {...}"
           if (line.startsWith('data: ')) {
-            const dataStr = line.slice(6); // Remove "data: " prefix
+            const dataStr = line.slice(6); // 移除 "data: " 前缀
 
             try {
               const event: StreamEvent = JSON.parse(dataStr);
               onEvent(event);
 
-              // Stop if done or error
+              // 如果完成或出错则停止
               if (event.type === 'done' || event.type === 'error') {
                 return;
               }
@@ -70,14 +70,14 @@ export class SSEClient {
               console.error('Failed to parse SSE event:', e);
             }
           } else if (line.startsWith('event: done')) {
-            // Stream complete
+            // 流式传输完成
             return;
           }
         }
       }
     } catch (error) {
       if (error instanceof Error) {
-        // Don't throw error if aborted by user
+        // 用户手动中止时不抛错
         if (error.name === 'AbortError') {
           return;
         }
@@ -88,7 +88,7 @@ export class SSEClient {
     }
   }
 
-  // Cancel ongoing stream
+  // 取消正在进行的流
   cancel(): void {
     this.controller?.abort();
   }

@@ -1,5 +1,4 @@
-"""Sandbox lifecycle manager - one sandbox per session."""
-
+"""沙箱生命周期管理器 - 每个会话一个沙箱。"""
 import asyncio
 import logging
 from dataclasses import dataclass, field
@@ -12,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SandboxInstance:
-    """Represents a sandbox instance for a session."""
+    """表示会话的沙箱实例。"""
 
     session_id: str
     sandbox_id: str = field(default_factory=lambda: str(uuid4()))
@@ -38,24 +37,24 @@ class SandboxInstance:
 
 
 class SandboxManager:
-    """Manages sandbox instances per session.
+    """管理每个会话的沙箱实例。
 
-    Features:
-    - One sandbox per session_id
-    - Auto-create sandbox on first access
-    - TTL-based cleanup for idle sandboxes
-    - Async-safe with locks
+    特性：
+    - 每个 session_id 一个沙箱
+    - 首次访问时自动创建沙箱
+    - 基于 TTL 清理空闲沙箱
+    - 使用锁实现异步安全
 
-    Usage:
+    用法：
         manager = SandboxManager(base_url="http://localhost:8080")
 
-        # Get or create sandbox for session
+        # 获取或创建会话的沙箱
         sandbox = await manager.get_sandbox("session-123")
 
-        # Execute commands
+        # 执行命令
         result = sandbox.client.shell.exec_command(command="ls -la")
 
-        # Cleanup when done
+        # 完成后清理
         await manager.remove_sandbox("session-123")
     """
 
@@ -79,7 +78,7 @@ class SandboxManager:
         self._docker_container_id: Optional[str] = None
 
     async def initialize(self) -> None:
-        """Initialize the sandbox manager."""
+        """初始化沙箱管理器。"""
         if self._initialized:
             return
 
@@ -90,7 +89,7 @@ class SandboxManager:
         logger.info(f"SandboxManager initialized, base_url={self._base_url}")
 
     async def _start_docker_container(self) -> None:
-        """Start sandbox Docker container if not running."""
+        """如果未运行则启动沙箱 Docker 容器。"""
         import subprocess
 
         try:
@@ -125,13 +124,13 @@ class SandboxManager:
             logger.error(f"Docker startup failed: {e}")
 
     async def get_sandbox(self, session_id: str) -> SandboxInstance:
-        """Get or create sandbox for session.
+        """获取或创建会话的沙箱。
 
         Args:
-            session_id: Session identifier
+            session_id: 会话标识符
 
         Returns:
-            SandboxInstance for the session
+            会话的 SandboxInstance
         """
         async with self._lock:
             if session_id in self._sandboxes:
@@ -147,7 +146,7 @@ class SandboxManager:
             return sandbox
 
     async def _create_sandbox(self, session_id: str) -> SandboxInstance:
-        """Create a new sandbox instance."""
+        """创建新的沙箱实例。"""
         try:
             from agent_sandbox import Sandbox
         except ImportError:
@@ -167,13 +166,13 @@ class SandboxManager:
         return sandbox
 
     async def remove_sandbox(self, session_id: str) -> bool:
-        """Remove sandbox for session.
+        """移除会话的沙箱。
 
         Args:
-            session_id: Session identifier
+            session_id: 会话标识符
 
         Returns:
-            True if removed, False if not found
+            如果移除成功返回 True，未找到返回 False
         """
         async with self._lock:
             if session_id not in self._sandboxes:
@@ -184,7 +183,7 @@ class SandboxManager:
             return True
 
     async def _cleanup_oldest(self) -> None:
-        """Remove the oldest sandbox to make room."""
+        """移除最旧的沙箱以腾出空间。"""
         if not self._sandboxes:
             return
 
@@ -196,10 +195,10 @@ class SandboxManager:
         logger.info(f"Cleaned up oldest sandbox: {oldest_session}")
 
     async def cleanup_expired(self) -> int:
-        """Remove sandboxes that have exceeded TTL.
+        """移除超过 TTL 的沙箱。
 
         Returns:
-            Number of sandboxes removed
+            移除的沙箱数量
         """
         async with self._lock:
             now = datetime.now()
@@ -218,7 +217,7 @@ class SandboxManager:
             return len(expired)
 
     async def shutdown(self) -> None:
-        """Shutdown manager and cleanup resources."""
+        """关闭管理器并清理资源。"""
         async with self._lock:
             self._sandboxes.clear()
 

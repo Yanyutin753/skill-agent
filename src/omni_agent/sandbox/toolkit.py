@@ -1,5 +1,4 @@
-"""Sandbox toolkit - creates all sandbox tools for a session."""
-
+"""沙箱工具包 - 为会话创建所有沙箱工具。"""
 from typing import Optional
 
 from omni_agent.tools.base import Tool
@@ -15,19 +14,18 @@ from omni_agent.sandbox.tools import (
 
 
 class SandboxToolkit:
-    """Factory for creating sandbox-isolated tools.
+    """创建沙箱隔离工具的工厂。
 
-    Creates a complete set of tools that execute in an isolated
-    sandbox environment, one sandbox per session.
+    创建在隔离沙箱环境中执行的完整工具集，每个会话一个沙箱。
 
-    Usage:
+    用法：
         manager = SandboxManager(base_url="http://localhost:8080")
         await manager.initialize()
 
         toolkit = SandboxToolkit(manager)
         tools = await toolkit.get_tools("session-123")
 
-        # tools contains: bash, read_file, write_file, edit_file, python, list_dir
+        # tools 包含：bash, read_file, write_file, edit_file, python, list_dir
     """
 
     def __init__(
@@ -43,19 +41,19 @@ class SandboxToolkit:
         self._enable_jupyter = enable_jupyter
 
     async def get_tools(self, session_id: str) -> list[Tool]:
-        """Get all sandbox tools for a session.
+        """获取会话的所有沙箱工具。
 
         Args:
-            session_id: Session identifier
+            session_id: 会话标识符
 
         Returns:
-            List of Tool instances bound to the session's sandbox
+            绑定到会话沙箱的 Tool 实例列表
         """
         sandbox = await self._manager.get_sandbox(session_id)
         return self._create_tools(sandbox)
 
     def _create_tools(self, sandbox: SandboxInstance) -> list[Tool]:
-        """Create tool instances for a sandbox."""
+        """为沙箱创建工具实例。"""
         tools: list[Tool] = []
 
         if self._enable_shell:
@@ -75,13 +73,13 @@ class SandboxToolkit:
         return tools
 
     async def cleanup_session(self, session_id: str) -> bool:
-        """Remove sandbox for a session.
+        """移除会话的沙箱。
 
         Args:
-            session_id: Session identifier
+            session_id: 会话标识符
 
         Returns:
-            True if removed, False if not found
+            如果移除成功返回 True，未找到返回 False
         """
         return await self._manager.remove_sandbox(session_id)
 

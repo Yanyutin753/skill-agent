@@ -1,5 +1,4 @@
-"""Lightweight connection handling for MCP servers."""
-
+"""MCP 服务器的轻量级连接处理。"""
 from abc import ABC, abstractmethod
 from contextlib import AsyncExitStack
 from typing import Any

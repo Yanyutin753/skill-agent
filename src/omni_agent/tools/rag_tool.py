@@ -1,5 +1,4 @@
-"""RAG tool for searching knowledge base."""
-
+"""RAG 工具，用于搜索知识库。"""
 from typing import Any
 
 from omni_agent.core.config import settings
@@ -8,7 +7,7 @@ from omni_agent.tools.base import Tool, ToolResult
 
 
 class RAGTool(Tool):
-    """Tool for searching the knowledge base using hybrid retrieval."""
+    """使用混合检索搜索知识库的工具。"""
 
     @property
     def name(self) -> str:
@@ -66,7 +65,7 @@ When using the search_knowledge tool:
     async def execute(
         self, query: str, top_k: int | None = None, mode: str = "hybrid"
     ) -> ToolResult:
-        """Execute knowledge base search."""
+        """执行知识库搜索。"""
         try:
             results = await rag_service.search(
                 query=query,

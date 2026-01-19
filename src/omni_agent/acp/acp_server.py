@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""ACP Server using official Agent Client Protocol Python SDK.
+"""使用官方 Agent 客户端协议 Python SDK 的 ACP 服务器。
 
-This module implements an ACP-compliant agent using the official SDK,
-allowing code editors like Zed, JetBrains, VSCode to spawn omni-agent.
+此模块使用官方 SDK 实现符合 ACP 的代理，
+允许 Zed、JetBrains、VSCode 等代码编辑器启动 omni-agent。
 
-Usage:
+用法：
     omni-agent-acp [--workspace DIR]
     python -m omni_agent.acp.acp_server [--workspace DIR]
 """

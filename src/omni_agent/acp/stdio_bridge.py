@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""ACP stdio bridge for code editor integration.
+"""用于代码编辑器集成的 ACP stdio 桥接器。
 
-This script bridges stdio (used by Zed, JetBrains) to the HTTP ACP endpoints.
-Run this script as the ACP agent command in your editor configuration.
+此脚本将 stdio（Zed、JetBrains 使用）桥接到 HTTP ACP 端点。
+在编辑器配置中将此脚本作为 ACP 代理命令运行。
 
-Usage:
+用法：
     python -m omni_agent.acp.stdio_bridge [--port 8000] [--host localhost]
 """
 

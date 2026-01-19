@@ -1,5 +1,4 @@
-"""Tool loading for CLI mode (mirrors api/deps.py pattern)."""
-
+"""CLI 模式的工具加载（镜像 api/deps.py 模式）。"""
 import os
 import sys
 from contextlib import contextmanager

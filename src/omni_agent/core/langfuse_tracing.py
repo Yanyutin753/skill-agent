@@ -1,4 +1,4 @@
-"""Langfuse tracing integration for agent observability.
+"""Langfuse 追踪集成，用于 Agent 可观测性。
 
 This module provides Langfuse-based tracing that replaces the legacy AgentLogger.
 It integrates with LiteLLM for automatic LLM call tracing and provides decorators
@@ -6,7 +6,6 @@ for agent and tool execution tracing.
 
 When Langfuse is disabled, falls back to basic console logging.
 """
-
 import logging
 import os
 import time

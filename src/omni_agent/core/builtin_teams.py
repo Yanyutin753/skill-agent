@@ -1,5 +1,4 @@
-"""Builtin team configurations for common use cases."""
-
+"""常见用例的内置团队配置。"""
 from typing import List
 
 from omni_agent.core.llm_client import LLMClient

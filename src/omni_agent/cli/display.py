@@ -1,5 +1,4 @@
-"""ANSI color definitions and display utilities for CLI output."""
-
+"""ANSI 颜色定义和 CLI 输出显示工具。"""
 import re
 from datetime import datetime
 from typing import TYPE_CHECKING, Any

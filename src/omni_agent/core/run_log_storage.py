@@ -1,10 +1,9 @@
-"""Run log storage backends for agent execution logs.
+"""Agent 执行日志的运行日志存储后端。
 
 Supports:
 - FileStorage: Local file storage (default)
 - RedisStorage: Redis storage for cloud debugging
 """
-
 import json
 import time
 from abc import ABC, abstractmethod

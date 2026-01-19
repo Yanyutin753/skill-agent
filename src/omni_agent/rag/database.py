@@ -1,5 +1,4 @@
-"""Database manager for RAG knowledge base using PostgreSQL + pgvector."""
-
+"""RAG 知识库的数据库管理器，使用 PostgreSQL + pgvector。"""
 import json
 import uuid
 from typing import Any
@@ -11,13 +10,13 @@ from omni_agent.core.config import settings
 
 
 class DatabaseManager:
-    """Manages PostgreSQL connection and operations for RAG knowledge base."""
+    """管理 RAG 知识库的 PostgreSQL 连接和操作。"""
 
     def __init__(self) -> None:
         self._pool: asyncpg.Pool | None = None
 
     async def connect(self) -> None:
-        """Initialize database connection pool."""
+        """初始化数据库连接池。"""
         self._pool = await asyncpg.create_pool(
             host=settings.POSTGRES_HOST,
             port=settings.POSTGRES_PORT,
@@ -30,17 +29,17 @@ class DatabaseManager:
         )
 
     async def _init_connection(self, conn: asyncpg.Connection) -> None:
-        """Initialize connection with pgvector extension."""
+        """使用 pgvector 扩展初始化连接。"""
         await register_vector(conn)
 
     async def disconnect(self) -> None:
-        """Close database connection pool."""
+        """关闭数据库连接池。"""
         if self._pool:
             await self._pool.close()
             self._pool = None
 
     async def initialize_schema(self) -> None:
-        """Create database tables and indexes if they don't exist."""
+        """如果不存在则创建数据库表和索引。"""
         if not self._pool:
             raise RuntimeError("Database not connected")
 
@@ -100,7 +99,7 @@ class DatabaseManager:
         file_size: int,
         metadata: dict[str, Any] | None = None,
     ) -> str:
-        """Insert a new document record."""
+        """插入新的文档记录。"""
         if not self._pool:
             raise RuntimeError("Database not connected")
 
@@ -124,7 +123,7 @@ class DatabaseManager:
         document_id: str,
         chunks: list[dict[str, Any]],
     ) -> None:
-        """Insert multiple chunks for a document."""
+        """为文档插入多个分块。"""
         if not self._pool:
             raise RuntimeError("Database not connected")
 
@@ -164,7 +163,7 @@ class DatabaseManager:
         top_k: int = 5,
         threshold: float = 0.0,
     ) -> list[dict[str, Any]]:
-        """Search for similar chunks using vector similarity."""
+        """使用向量相似度搜索相似分块。"""
         if not self._pool:
             raise RuntimeError("Database not connected")
 
@@ -208,7 +207,7 @@ class DatabaseManager:
         query: str,
         top_k: int = 5,
     ) -> list[dict[str, Any]]:
-        """Search for chunks using full-text search + ILIKE for Chinese support."""
+        """使用全文搜索 + ILIKE 搜索分块（支持中文）。"""
         if not self._pool:
             raise RuntimeError("Database not connected")
 
@@ -262,18 +261,18 @@ class DatabaseManager:
         keyword_weight: float = 0.3,
         rrf_k: int = 60,
     ) -> list[dict[str, Any]]:
-        """Hybrid search combining semantic and keyword search using RRF.
+        """使用 RRF 结合语义搜索和关键词搜索的混合搜索。
 
         Args:
-            query: Search query text for keyword search
-            query_embedding: Query embedding vector for semantic search
-            top_k: Number of results to return
-            semantic_weight: Weight for semantic search scores (0-1)
-            keyword_weight: Weight for keyword search scores (0-1)
-            rrf_k: RRF constant (default 60, higher = more weight to lower ranks)
+            query: 用于关键词搜索的查询文本
+            query_embedding: 用于语义搜索的查询嵌入向量
+            top_k: 返回结果数量
+            semantic_weight: 语义搜索分数权重 (0-1)
+            keyword_weight: 关键词搜索分数权重 (0-1)
+            rrf_k: RRF 常数（默认 60，越高越重视低排名）
 
         Returns:
-            Combined and re-ranked results
+            合并并重新排序的结果
         """
         if not self._pool:
             raise RuntimeError("Database not connected")
@@ -371,7 +370,7 @@ class DatabaseManager:
             ]
 
     async def list_documents(self) -> list[dict[str, Any]]:
-        """List all documents in the knowledge base."""
+        """列出知识库中的所有文档。"""
         if not self._pool:
             raise RuntimeError("Database not connected")
 
@@ -398,7 +397,7 @@ class DatabaseManager:
             ]
 
     async def delete_document(self, document_id: str) -> bool:
-        """Delete a document and its chunks."""
+        """删除文档及其分块。"""
         if not self._pool:
             raise RuntimeError("Database not connected")
 
@@ -410,7 +409,7 @@ class DatabaseManager:
             return result == "DELETE 1"
 
     async def get_document(self, document_id: str) -> dict[str, Any] | None:
-        """Get a document by ID."""
+        """按 ID 获取文档。"""
         if not self._pool:
             raise RuntimeError("Database not connected")
 
@@ -437,5 +436,5 @@ class DatabaseManager:
             return None
 
 
-# Global database manager instance
+# 全局数据库管理器实例
 db_manager = DatabaseManager()

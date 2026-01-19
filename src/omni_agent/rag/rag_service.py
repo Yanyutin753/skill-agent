@@ -1,5 +1,4 @@
-"""RAG service for knowledge base operations."""
-
+"""RAG 服务，用于知识库操作。"""
 from typing import Any, BinaryIO
 
 from omni_agent.core.config import settings
@@ -9,7 +8,7 @@ from omni_agent.rag.embedding_service import EmbeddingService, embedding_service
 
 
 class RAGService:
-    """High-level service for RAG operations."""
+    """RAG 操作的高级服务。"""
 
     def __init__(
         self,
@@ -22,12 +21,12 @@ class RAGService:
         self.processor = processor or document_processor
 
     async def initialize(self) -> None:
-        """Initialize RAG service (connect to database and create schema)."""
+        """初始化 RAG 服务（连接数据库并创建模式）。"""
         await self.db.connect()
         await self.db.initialize_schema()
 
     async def shutdown(self) -> None:
-        """Shutdown RAG service."""
+        """关闭 RAG 服务。"""
         await self.db.disconnect()
 
     async def add_document(
@@ -37,10 +36,10 @@ class RAGService:
         file_size: int,
         metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Add a document to the knowledge base.
+        """将文档添加到知识库。
 
         Returns:
-            Document info with id and chunk count
+            包含 id 和分块数量的文档信息
         """
         # Validate file type
         if not self.processor.is_supported(filename):
@@ -90,17 +89,17 @@ class RAGService:
         semantic_weight: float = 0.7,
         keyword_weight: float = 0.3,
     ) -> list[dict[str, Any]]:
-        """Search knowledge base for relevant content.
+        """搜索知识库中的相关内容。
 
         Args:
-            query: Search query text
-            top_k: Number of results to return (default from settings)
-            mode: Search mode - "hybrid" (default), "semantic", or "keyword"
-            semantic_weight: Weight for semantic search in hybrid mode (0-1)
-            keyword_weight: Weight for keyword search in hybrid mode (0-1)
+            query: 搜索查询文本
+            top_k: 返回结果数量（默认来自设置）
+            mode: 搜索模式 - "hybrid"（默认）、"semantic" 或 "keyword"
+            semantic_weight: 混合模式中语义搜索的权重 (0-1)
+            keyword_weight: 混合模式中关键词搜索的权重 (0-1)
 
         Returns:
-            List of relevant chunks with scores
+            带有分数的相关分块列表
         """
         top_k = top_k or settings.RAG_TOP_K
 
@@ -138,17 +137,17 @@ class RAGService:
         return results
 
     async def list_documents(self) -> list[dict[str, Any]]:
-        """List all documents in the knowledge base."""
+        """列出知识库中的所有文档。"""
         return await self.db.list_documents()
 
     async def get_document(self, document_id: str) -> dict[str, Any] | None:
-        """Get document by ID."""
+        """按 ID 获取文档。"""
         return await self.db.get_document(document_id)
 
     async def delete_document(self, document_id: str) -> bool:
-        """Delete a document from the knowledge base."""
+        """从知识库中删除文档。"""
         return await self.db.delete_document(document_id)
 
 
-# Global RAG service instance
+# 全局 RAG 服务实例
 rag_service = RAGService()

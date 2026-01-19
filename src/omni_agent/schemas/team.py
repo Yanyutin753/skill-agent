@@ -1,5 +1,4 @@
-"""Team schemas for multi-agent collaboration."""
-
+"""多 Agent 协作的团队模式。"""
 from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field
 

@@ -1,5 +1,4 @@
-"""Base tool classes."""
-
+"""工具基类。"""
 from typing import Any
 from pydantic import BaseModel
 

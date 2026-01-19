@@ -1,18 +1,18 @@
-// Axios instance with configuration
+// 带配置的 Axios 实例
 import axios from 'axios';
 
 const apiClient = axios.create({
   baseURL: '/api/v1',
-  timeout: 120000, // 2 minutes for agent execution
+  timeout: 120000, // agent 执行超时 2 分钟
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor
+// 请求拦截器
 apiClient.interceptors.request.use(
   (config) => {
-    // Can add auth tokens here if needed
+    // 如有需要可在此添加鉴权 token
     return config;
   },
   (error) => {
@@ -20,13 +20,13 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Response interceptor
+// 响应拦截器
 apiClient.interceptors.response.use(
   (response) => {
     return response;
   },
   (error) => {
-    // Handle errors globally
+    // 全局错误处理
     console.error('API Error:', error);
     return Promise.reject(error);
   }

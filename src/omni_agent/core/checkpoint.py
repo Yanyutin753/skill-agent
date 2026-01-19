@@ -1,5 +1,4 @@
-"""Checkpoint system for agent state persistence and recovery."""
-
+"""检查点系统，用于 Agent 状态持久化和恢复。"""
 import json
 import os
 import time

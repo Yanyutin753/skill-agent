@@ -1,4 +1,4 @@
-// Knowledge Base API Service
+// 知识库 API 服务
 import apiClient from './api';
 
 export interface KnowledgeDocument {
@@ -29,7 +29,7 @@ export interface DocumentListResponse {
 }
 
 export const knowledgeApi = {
-  // Upload a document
+  // 上传文档
   async uploadDocument(file: File): Promise<KnowledgeDocument> {
     const formData = new FormData();
     formData.append('file', file);
@@ -42,24 +42,24 @@ export const knowledgeApi = {
     return response.data;
   },
 
-  // List all documents
+  // 列出所有文档
   async listDocuments(): Promise<DocumentListResponse> {
     const response = await apiClient.get<DocumentListResponse>('/knowledge/documents');
     return response.data;
   },
 
-  // Get document by ID
+  // 根据 ID 获取文档
   async getDocument(id: string): Promise<KnowledgeDocument> {
     const response = await apiClient.get<KnowledgeDocument>(`/knowledge/documents/${id}`);
     return response.data;
   },
 
-  // Delete document
+  // 删除文档
   async deleteDocument(id: string): Promise<void> {
     await apiClient.delete(`/knowledge/documents/${id}`);
   },
 
-  // Search knowledge base
+  // 搜索知识库
   async search(
     query: string,
     options?: {

@@ -1,18 +1,16 @@
-"""SpawnAgentTool - Allows agents to dynamically create sub-agents for task delegation."""
-
+"""SpawnAgentTool - 允许 Agent 动态创建子 Agent 进行任务委派。"""
 from typing import Any, Dict, List, Optional
 
 from omni_agent.tools.base import Tool, ToolResult
 
 
 class SpawnAgentTool(Tool):
-    """Tool for spawning sub-agents to handle specific tasks autonomously.
+    """用于生成子 Agent 自主处理特定任务的工具。
 
-    This tool allows the parent agent to create specialized sub-agents
-    dynamically based on task requirements. Sub-agents can have different
-    roles, tool sets, and configurations.
+    此工具允许父 Agent 根据任务需求动态创建专门的子 Agent。
+    子 Agent 可以有不同的角色、工具集和配置。
 
-    Similar to Claude Code's Task tool functionality.
+    类似于 Claude Code 的 Task 工具功能。
     """
 
     def __init__(
@@ -26,17 +24,17 @@ class SpawnAgentTool(Tool):
         default_max_steps: int = 15,
         default_token_limit: int = 50000,
     ):
-        """Initialize SpawnAgentTool.
+        """初始化 SpawnAgentTool。
 
         Args:
-            llm_client: LLM client for sub-agent communication
-            parent_tools: Dict of tools available to parent agent
-            workspace_dir: Workspace directory path
-            current_depth: Current nesting depth (0 for root agent)
-            max_depth: Maximum allowed nesting depth
-            parent_logger: Optional parent agent's logger for event tracking
-            default_max_steps: Default max steps for sub-agents
-            default_token_limit: Default token limit for sub-agents
+            llm_client: 用于子 Agent 通信的 LLM 客户端
+            parent_tools: 父 Agent 可用的工具字典
+            workspace_dir: 工作目录路径
+            current_depth: 当前嵌套深度（根 Agent 为 0）
+            max_depth: 允许的最大嵌套深度
+            parent_logger: 用于事件跟踪的可选父 Agent 日志记录器
+            default_max_steps: 子 Agent 的默认最大步骤数
+            default_token_limit: 子 Agent 的默认 token 限制
         """
         self._llm_client = llm_client
         self._parent_tools = parent_tools
@@ -147,17 +145,17 @@ spawn_agent(
         max_steps: Optional[int] = None,
         **kwargs
     ) -> ToolResult:
-        """Execute a sub-agent with the given configuration.
+        """使用给定配置执行子 Agent。
 
         Args:
-            task: The task for the sub-agent to accomplish
-            role: Optional specialized role for the sub-agent
-            context: Optional context information from parent
-            tools: Optional list of tool names to enable
-            max_steps: Optional max steps limit
+            task: 子 Agent 要完成的任务
+            role: 子 Agent 的可选专门角色
+            context: 来自父 Agent 的可选上下文信息
+            tools: 要启用的可选工具名称列表
+            max_steps: 可选的最大步骤限制
 
         Returns:
-            ToolResult with sub-agent's final response
+            包含子 Agent 最终响应的 ToolResult
         """
         # Import here to avoid circular imports
         from omni_agent.core.agent import Agent
@@ -248,13 +246,13 @@ spawn_agent(
             return ToolResult(success=False, error=error_msg)
 
     def _build_sub_agent_tools(self, tool_names: Optional[List[str]]) -> List[Tool]:
-        """Build tool list for sub-agent.
+        """为子 Agent 构建工具列表。
 
         Args:
-            tool_names: Optional list of specific tool names to include
+            tool_names: 要包含的可选特定工具名称列表
 
         Returns:
-            List of Tool instances for sub-agent
+            子 Agent 的 Tool 实例列表
         """
         if tool_names is not None:
             # Filter to requested tools only
@@ -296,14 +294,14 @@ spawn_agent(
         role: Optional[str],
         context: Optional[str]
     ) -> str:
-        """Build system prompt for sub-agent.
+        """为子 Agent 构建系统提示。
 
         Args:
-            role: Optional specialized role
-            context: Optional context from parent
+            role: 可选的专门角色
+            context: 来自父 Agent 的可选上下文
 
         Returns:
-            System prompt string
+            系统提示字符串
         """
         parts = []
 
@@ -363,18 +361,18 @@ Use this sparingly and only for truly independent subtasks.
         tool_calls: int,
         max_steps: int,
     ) -> str:
-        """Format sub-agent result for parent agent.
+        """为父 Agent 格式化子 Agent 结果。
 
         Args:
-            task: Original task
-            role: Sub-agent role
-            result: Sub-agent's final response
-            steps_used: Number of steps executed
-            tool_calls: Number of tool calls made
-            max_steps: Maximum steps allowed
+            task: 原始任务
+            role: 子 Agent 角色
+            result: 子 Agent 的最终响应
+            steps_used: 执行的步骤数
+            tool_calls: 进行的工具调用数
+            max_steps: 允许的最大步骤数
 
         Returns:
-            Formatted result string
+            格式化的结果字符串
         """
         header = "## Sub-Agent Execution Result"
         if role:

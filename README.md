@@ -33,6 +33,14 @@
 - **Sandbox 沙箱隔离**: 基于 agent-sandbox，每个 Session 独立沙箱，安全执行不受信任代码
 - **ACP 协议支持**: 实现 Zed Agent Client Protocol，支持代码编辑器集成
 
+### 场景路由
+- **自动场景识别**: 根据用户输入自动识别任务类型（代码开发、旅行规划、信息检索等）
+- **动态工具选择**: 按场景自动配置最优工具集，减少不必要的 token 消耗
+- **工具预设系统**: 预定义工具集（minimal/coding/research/travel/full）
+- **工具分组管理**: 按类别组织工具（file_ops/code_tools/search_tools/maps_tools等）
+- **系统提示适配**: 根据场景注入专业化的系统提示前缀
+- **执行模式选择**: 自动选择 SingleAgent 或 Team 模式
+
 ### 性能与监控
 - **Langfuse 可观测性**: 生产级 LLM 追踪，支持 Agent 执行流程、工具调用、Token 成本统计
 - **执行时间追踪**: 精确记录每个工具的执行时间（毫秒级）
@@ -64,6 +72,10 @@ skill-agent/
 │       │   ├── agent_logger.py # 结构化日志系统
 │       │   ├── llm_client.py   # LLM 客户端（含流式）
 │       │   ├── config.py       # 配置管理
+│       │   ├── scene.py            # 场景类型和配置
+│       │   ├── scene_registry.py   # 预定义场景配置
+│       │   ├── scene_router.py     # 场景路由器
+│       │   ├── tool_groups.py      # 工具分组与预设
 │       │   ├── token_manager.py    # Token 管理与消息总结
 │       │   ├── file_memory.py      # AGENTS.md 文件记忆系统
 │       │   ├── session.py          # Session 数据模型
@@ -153,6 +165,10 @@ SPAWN_AGENT_TOKEN_LIMIT=50000
 
 # ACP 协议（代码编辑器集成）
 ENABLE_ACP=true              # 启用 ACP 端点
+
+# 场景路由
+ENABLE_SCENE_ROUTING=true    # 启用自动场景识别
+SCENE_ROUTING_USE_LLM=false  # 使用 LLM 进行场景分类（更精确但更慢）
 
 # Sandbox 沙箱隔离（可选）
 ENABLE_SANDBOX=false         # 启用沙箱隔离执行

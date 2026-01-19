@@ -1,5 +1,4 @@
-"""Dependency injection for FastAPI endpoints."""
-
+"""FastAPI 端点的依赖注入。"""
 from pathlib import Path
 from typing import Annotated, Optional, TYPE_CHECKING
 

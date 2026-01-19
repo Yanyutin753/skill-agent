@@ -1,5 +1,4 @@
-"""Tool executor for handling tool calls with parallel execution support."""
-
+"""工具执行器，用于处理工具调用，支持并行执行。"""
 import asyncio
 import time
 from dataclasses import dataclass

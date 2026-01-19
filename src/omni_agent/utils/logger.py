@@ -1,7 +1,6 @@
 """
-Logging utilities for Omni Agent
+Omni Agent 的日志工具
 """
-
 import logging
 import sys
 

@@ -1,5 +1,4 @@
-"""Session handling for CLI mode."""
-
+"""CLI 模式的会话处理。"""
 import uuid
 from datetime import datetime
 from typing import Optional

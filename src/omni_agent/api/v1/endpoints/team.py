@@ -1,9 +1,8 @@
 """
-Team API endpoints for multi-agent coordination.
+团队 API 端点，用于多 Agent 协调。
 
-Uses the Team system where a Leader agent intelligently delegates tasks to members.
+使用团队系统，其中 Leader Agent 智能地将任务委派给成员。
 """
-
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 from fastapi import APIRouter, HTTPException, Depends

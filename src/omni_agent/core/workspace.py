@@ -1,8 +1,7 @@
-"""Workspace management for session isolation.
+"""工作区管理，用于会话隔离。
 
 Automatically creates isolated subdirectories for each session/request.
 """
-
 import shutil
 import time
 from pathlib import Path

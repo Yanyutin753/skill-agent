@@ -1,5 +1,4 @@
-"""Application configuration using pydantic-settings."""
-
+"""使用 pydantic-settings 的应用程序配置。"""
 from pathlib import Path
 from typing import Any
 

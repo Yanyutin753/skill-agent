@@ -1,5 +1,4 @@
-"""FastAPI application for Agent API with best practices architecture."""
-
+"""Agent API 的 FastAPI 应用，采用最佳实践架构。"""
 import warnings
 warnings.filterwarnings("ignore", message="Pydantic serializer warnings")
 

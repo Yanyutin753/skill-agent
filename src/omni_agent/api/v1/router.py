@@ -1,5 +1,4 @@
-"""API v1 router aggregating all v1 endpoints."""
-
+"""API v1 路由器，聚合所有 v1 端点。"""
 from fastapi import APIRouter
 
 from omni_agent.api.v1.endpoints import agent, health, knowledge, team, tools, trace, acp
@@ -7,17 +6,17 @@ from omni_agent.core.config import settings
 
 api_router = APIRouter()
 
-# Include endpoint routers
+# 包含端点路由器
 api_router.include_router(agent.router, prefix="/agent", tags=["agent"])
 api_router.include_router(team.router, tags=["team"])
 api_router.include_router(tools.router, prefix="/tools", tags=["tools"])
 api_router.include_router(knowledge.router, prefix="/knowledge", tags=["knowledge"])
 api_router.include_router(trace.router, prefix="/trace", tags=["trace"])
 
-# ACP (Agent Client Protocol) endpoints
+# ACP (Agent 客户端协议) 端点
 if settings.ENABLE_ACP:
     api_router.include_router(acp.router, tags=["acp"])
 
-# Health endpoint at root level (not versioned)
+# 根级别的健康检查端点（无版本号）
 health_router = APIRouter()
 health_router.include_router(health.router, tags=["health"])

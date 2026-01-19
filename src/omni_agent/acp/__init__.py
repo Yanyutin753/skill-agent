@@ -1,10 +1,9 @@
-"""ACP (Agent Client Protocol) integration module.
+"""ACP（Agent 客户端协议）集成模块。
 
-Implements Zed's Agent Client Protocol for standardized communication
-between code editors and coding agents.
+实现 Zed 的 Agent 客户端协议，用于代码编辑器和编码代理之间的标准化通信。
 
-Protocol spec: https://agentclientprotocol.com/
-GitHub: https://github.com/zed-industries/agent-client-protocol
+协议规范：https://agentclientprotocol.com/
+GitHub：https://github.com/zed-industries/agent-client-protocol
 """
 
 from omni_agent.acp.schemas import (

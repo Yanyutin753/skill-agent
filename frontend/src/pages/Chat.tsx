@@ -1,4 +1,4 @@
-// Simple MVP Chat Page
+// 简单的 MVP 聊天页面
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Send, Loader2, Trash2, Plus, Bot, User, Database, Bug } from 'lucide-react';
@@ -61,7 +61,7 @@ export default function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [currentSession?.messages, streamingMessage]);
 
-  // Auto-resize textarea
+  // 文本框自动调整高度
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -92,7 +92,7 @@ export default function Chat() {
 
   return (
     <div className="flex h-screen bg-[var(--bg-primary)]">
-      {/* Sidebar */}
+      {/* 侧边栏 */}
       <div className="w-[260px] flex-shrink-0 flex flex-col bg-[var(--bg-sidebar)] text-[var(--text-sidebar)] transition-all duration-300">
         <div className="p-3">
           <button
@@ -126,15 +126,15 @@ export default function Chat() {
               >
                 <Trash2 className="w-4 h-4" />
               </button>
-              {/* Gradient fade for long titles */}
+              {/* 长标题的渐变遮罩 */}
               <div className="absolute right-8 top-0 bottom-0 w-8 bg-gradient-to-l from-[var(--bg-sidebar)] to-transparent group-hover:from-[var(--bg-sidebar-hover)] pointer-events-none" />
             </div>
           ))}
         </div>
 
-        {/* Bottom Actions */}
+        {/* 底部操作区 */}
         <div className="p-3 border-t border-[var(--border-sidebar)] space-y-1">
-          {/* Knowledge Base Link */}
+          {/* 知识库入口 */}
           <Link
             to="/knowledge"
             className="flex items-center gap-3 px-3 py-3 rounded-md hover:bg-[var(--bg-sidebar-hover)] cursor-pointer transition-colors text-sm"
@@ -145,7 +145,7 @@ export default function Chat() {
             <div className="font-medium">知识库</div>
           </Link>
 
-          {/* Debug Console Link - Langfuse */}
+          {/* 调试控制台入口 - Langfuse */}
           <a
             href={import.meta.env.VITE_LANGFUSE_URL || "https://cloud.langfuse.com"}
             target="_blank"
@@ -158,7 +158,7 @@ export default function Chat() {
             <div className="font-medium">调试控制台</div>
           </a>
 
-          {/* User Profile */}
+          {/* 用户信息 */}
           <div className="flex items-center gap-3 px-3 py-3 rounded-md hover:bg-[var(--bg-sidebar-hover)] cursor-pointer transition-colors">
             <div className="w-8 h-8 rounded bg-green-700 flex items-center justify-center text-white font-medium text-xs">
               U
@@ -168,9 +168,9 @@ export default function Chat() {
         </div>
       </div>
 
-      {/* Main Chat Area */}
+      {/* 主聊天区域 */}
       <div className="flex-1 flex flex-col relative min-w-0">
-        {/* Messages */}
+        {/* 消息列表 */}
         <div className="flex-1 overflow-y-auto scroll-smooth">
           <div className="max-w-3xl mx-auto px-4 pb-32 pt-4">
             {allMessages.length === 0 ? (
@@ -185,7 +185,7 @@ export default function Chat() {
                 <div key={message.id} className="group w-full text-[var(--text-primary)] border-b border-black/5 dark:border-white/5 border-none">
                   <div className="text-base gap-4 md:gap-6 md:max-w-3xl lg:max-w-[40rem] xl:max-w-[48rem] p-4 md:py-6 flex lg:px-0 m-auto">
                     
-                    {/* Avatar */}
+                    {/* 头像 */}
                     <div className="flex-shrink-0 flex flex-col relative items-end">
                       <div className="w-8 h-8 relative flex">
                         {message.role === 'user' ? (
@@ -200,7 +200,7 @@ export default function Chat() {
                       </div>
                     </div>
 
-                    {/* Content */}
+                    {/* 内容 */}
                     <div className="relative flex-1 overflow-hidden">
                       {message.role === 'user' ? (
                         <div className="font-medium">{message.content}</div>
@@ -247,10 +247,10 @@ export default function Chat() {
           </div>
         </div>
 
-        {/* Input Area */}
+        {/* 输入区域 */}
         <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-white via-white to-transparent pt-10 pb-6">
           <div className="max-w-3xl mx-auto px-4">
-             {/* Status Indicator */}
+             {/* 状态指示 */}
              {isStreaming && (
               <div className="mb-2 flex justify-center">
                  <div className="bg-white shadow-sm border border-gray-100 rounded-full px-4 py-1 text-xs font-medium text-gray-500 flex items-center gap-2">

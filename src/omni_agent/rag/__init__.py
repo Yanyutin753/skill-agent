@@ -1,5 +1,4 @@
-"""RAG (Retrieval Augmented Generation) module for knowledge base functionality."""
-
+"""RAG（检索增强生成）模块，用于知识库功能。"""
 from omni_agent.rag.database import DatabaseManager
 from omni_agent.rag.document_processor import DocumentProcessor
 from omni_agent.rag.embedding_service import EmbeddingService

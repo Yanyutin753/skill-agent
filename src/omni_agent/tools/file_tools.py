@@ -1,14 +1,13 @@
-"""File operation tools.
+"""文件操作工具。
 
-Provides deepagents-style filesystem tools:
-- read_file: Read file contents with line numbers
-- write_file: Create or overwrite files
-- edit_file: Exact string replacement with optional global replace
-- ls: List directory contents with metadata
-- glob: Find files matching patterns
-- grep: Search file contents with regex support
+提供 deepagents 风格的文件系统工具：
+- read_file: 读取文件内容，带行号
+- write_file: 创建或覆盖文件
+- edit_file: 精确字符串替换，支持全局替换
+- ls: 列出目录内容及元数据
+- glob: 按模式查找文件
+- grep: 支持正则表达式的文件内容搜索
 """
-
 import re
 from datetime import datetime
 from pathlib import Path
@@ -18,10 +17,10 @@ from .base import Tool, ToolResult
 
 
 class ReadTool(Tool):
-    """Read file content."""
+    """读取文件内容。"""
 
     def __init__(self, workspace_dir: str = "."):
-        """Initialize ReadTool with workspace directory."""
+        """使用工作目录初始化 ReadTool。"""
         self.workspace_dir = Path(workspace_dir).absolute()
 
     @property
@@ -58,7 +57,7 @@ class ReadTool(Tool):
         }
 
     async def execute(self, path: str, offset: int | None = None, limit: int | None = None) -> ToolResult:
-        """Execute read file."""
+        """执行文件读取。"""
         try:
             file_path = Path(path)
             if not file_path.is_absolute():
@@ -95,10 +94,10 @@ class ReadTool(Tool):
 
 
 class WriteTool(Tool):
-    """Write content to a file."""
+    """写入内容到文件。"""
 
     def __init__(self, workspace_dir: str = "."):
-        """Initialize WriteTool with workspace directory."""
+        """使用工作目录初始化 WriteTool。"""
         self.workspace_dir = Path(workspace_dir).absolute()
 
     @property
@@ -131,7 +130,7 @@ class WriteTool(Tool):
         }
 
     async def execute(self, path: str, content: str) -> ToolResult:
-        """Execute write file."""
+        """执行文件写入。"""
         try:
             file_path = Path(path)
             if not file_path.is_absolute():
@@ -145,10 +144,10 @@ class WriteTool(Tool):
 
 
 class EditTool(Tool):
-    """Edit file by replacing text."""
+    """通过替换文本编辑文件。"""
 
     def __init__(self, workspace_dir: str = "."):
-        """Initialize EditTool with workspace directory."""
+        """使用工作目录初始化 EditTool。"""
         self.workspace_dir = Path(workspace_dir).absolute()
 
     @property
@@ -190,7 +189,7 @@ class EditTool(Tool):
     async def execute(
         self, path: str, old_str: str, new_str: str, replace_all: bool = False
     ) -> ToolResult:
-        """Execute edit file."""
+        """执行文件编辑。"""
         try:
             file_path = Path(path)
             if not file_path.is_absolute():
@@ -232,7 +231,7 @@ class EditTool(Tool):
 
 
 class ListDirTool(Tool):
-    """List directory contents with metadata."""
+    """列出目录内容及元数据。"""
 
     def __init__(self, workspace_dir: str = "."):
         self.workspace_dir = Path(workspace_dir).absolute()
@@ -306,7 +305,7 @@ class ListDirTool(Tool):
 
 
 class GlobTool(Tool):
-    """Find files matching glob pattern."""
+    """按 glob 模式查找文件。"""
 
     def __init__(self, workspace_dir: str = "."):
         self.workspace_dir = Path(workspace_dir).absolute()
@@ -360,7 +359,7 @@ class GlobTool(Tool):
 
 
 class GrepTool(Tool):
-    """Search file contents with regex."""
+    """使用正则表达式搜索文件内容。"""
 
     def __init__(self, workspace_dir: str = "."):
         self.workspace_dir = Path(workspace_dir).absolute()

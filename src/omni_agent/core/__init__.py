@@ -1,5 +1,4 @@
-"""Core modules for the Omni Agent."""
-
+"""Omni Agent 的核心模块。"""
 from .agent import (
     Agent,
     AgentEvent,

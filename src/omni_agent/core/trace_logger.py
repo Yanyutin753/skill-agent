@@ -1,5 +1,4 @@
-"""Enhanced tracing logger for multi-agent workflows with decorator support."""
-
+"""增强型追踪日志，用于多 Agent 工作流，支持装饰器。"""
 import json
 import logging
 import time

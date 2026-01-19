@@ -1,18 +1,17 @@
-"""Embedding service using DashScope API (OpenAI compatible)."""
-
+"""嵌入服务，使用 DashScope API（OpenAI 兼容）。"""
 from openai import AsyncOpenAI
 
 from omni_agent.core.config import settings
 
 
 class EmbeddingService:
-    """Service for generating text embeddings using DashScope API."""
+    """使用 DashScope API 生成文本嵌入的服务。"""
 
     def __init__(self) -> None:
         self._client: AsyncOpenAI | None = None
 
     def _get_client(self) -> AsyncOpenAI:
-        """Get or create OpenAI client for DashScope."""
+        """获取或创建 DashScope 的 OpenAI 客户端。"""
         if self._client is None:
             self._client = AsyncOpenAI(
                 api_key=settings.DASHSCOPE_API_KEY,
@@ -21,7 +20,7 @@ class EmbeddingService:
         return self._client
 
     async def embed_text(self, text: str) -> list[float]:
-        """Generate embedding for a single text."""
+        """为单个文本生成嵌入。"""
         client = self._get_client()
         response = await client.embeddings.create(
             model=settings.EMBEDDING_MODEL,
@@ -30,7 +29,7 @@ class EmbeddingService:
         return response.data[0].embedding
 
     async def embed_texts(self, texts: list[str]) -> list[list[float]]:
-        """Generate embeddings for multiple texts (batch processing)."""
+        """为多个文本生成嵌入（批量处理）。"""
         if not texts:
             return []
 
@@ -54,5 +53,5 @@ class EmbeddingService:
         return all_embeddings
 
 
-# Global embedding service instance
+# 全局嵌入服务实例
 embedding_service = EmbeddingService()

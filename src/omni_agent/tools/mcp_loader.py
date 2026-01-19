@@ -1,16 +1,14 @@
-"""MCP tool loader with official MCP Python SDK integration.
+"""MCP 工具加载器，集成了官方 MCP Python SDK。
 
-This module implements MCP (Model Context Protocol) client integration based on
-the official modelcontextprotocol/python-sdk.
+此模块基于官方 modelcontextprotocol/python-sdk 实现 MCP（模型上下文协议）客户端集成。
 
-Supports multiple transports:
-- stdio: Local process communication (e.g., npx, python, uv)
-- sse: Server-Sent Events (HTTP streaming)
-- http: Streamable HTTP (bidirectional HTTP)
+支持多种传输方式：
+- stdio: 本地进程通信（例如 npx、python、uv）
+- sse: 服务器发送事件（HTTP 流）
+- http: 可流式 HTTP（双向 HTTP）
 
-Official SDK documentation: https://github.com/modelcontextprotocol/python-sdk
+官方 SDK 文档：https://github.com/modelcontextprotocol/python-sdk
 """
-
 import json
 from contextlib import AsyncExitStack
 from pathlib import Path
@@ -28,16 +26,15 @@ TransportType = Literal["stdio", "sse", "http"]
 
 
 class MCPTool(Tool):
-    """Wrapper for MCP tools from official SDK.
+    """官方 SDK 中 MCP 工具的包装器。
 
-    This class wraps tools provided by MCP servers and adapts them to our
-    Tool interface. It handles communication with the MCP server via the
-    ClientSession.
+    此类包装 MCP 服务器提供的工具，并将其适配到我们的 Tool 接口。
+    它通过 ClientSession 处理与 MCP 服务器的通信。
 
-    The tool execution follows official SDK patterns:
-    - Calls session.call_tool() with tool name and arguments
-    - Handles CallToolResult with content and structuredContent
-    - Converts MCP TextContent to our ToolResult format
+    工具执行遵循官方 SDK 模式：
+    - 使用工具名称和参数调用 session.call_tool()
+    - 处理包含 content 和 structuredContent 的 CallToolResult
+    - 将 MCP TextContent 转换为我们的 ToolResult 格式
     """
 
     def __init__(
@@ -47,13 +44,13 @@ class MCPTool(Tool):
         parameters: dict[str, Any],
         session: ClientSession,
     ):
-        """Initialize MCPTool with tool metadata and session.
+        """使用工具元数据和会话初始化 MCPTool。
 
         Args:
-            name: Tool name from MCP server
-            description: Tool description
-            parameters: Tool input schema (JSON Schema)
-            session: Active MCP ClientSession for calling tools
+            name: 来自 MCP 服务器的工具名称
+            description: 工具描述
+            parameters: 工具输入模式（JSON Schema）
+            session: 用于调用工具的活动 MCP ClientSession
         """
         self._name = name
         self._description = description
@@ -73,19 +70,19 @@ class MCPTool(Tool):
         return self._parameters
 
     async def execute(self, **kwargs) -> ToolResult:
-        """Execute MCP tool via the session.
+        """通过会话执行 MCP 工具。
 
-        This follows the official SDK pattern:
-        1. Call session.call_tool(name, arguments)
-        2. Get CallToolResult with content list
-        3. Extract TextContent from result.content
-        4. Check result.isError for error status
+        遵循官方 SDK 模式：
+        1. 调用 session.call_tool(name, arguments)
+        2. 获取包含 content 列表的 CallToolResult
+        3. 从 result.content 中提取 TextContent
+        4. 检查 result.isError 的错误状态
 
         Args:
-            **kwargs: Tool arguments matching the input schema
+            **kwargs: 匹配输入模式的工具参数
 
         Returns:
-            ToolResult with success status and content
+            包含成功状态和内容的 ToolResult
         """
         try:
             # Call MCP tool using official SDK ClientSession
@@ -121,20 +118,20 @@ class MCPTool(Tool):
 
 
 class MCPServerConnection:
-    """Manages connection to a single MCP server using official SDK.
+    """使用官方 SDK 管理单个 MCP 服务器的连接。
 
-    This class handles the lifecycle of an MCP server connection:
-    - Establishes stdio/SSE/HTTP connection to MCP server
-    - Initializes ClientSession following official SDK patterns
-    - Lists and wraps available tools
-    - Manages cleanup on disconnect
+    此类处理 MCP 服务器连接的生命周期：
+    - 建立与 MCP 服务器的 stdio/SSE/HTTP 连接
+    - 按照官方 SDK 模式初始化 ClientSession
+    - 列出并包装可用工具
+    - 在断开连接时进行清理
 
-    Supports multiple transports:
-    - stdio: For local processes (npx, python, uv)
-    - sse: For Server-Sent Events endpoints
-    - http: For Streamable HTTP endpoints
+    支持多种传输方式：
+    - stdio: 用于本地进程（npx、python、uv）
+    - sse: 用于服务器发送事件端点
+    - http: 用于可流式 HTTP 端点
 
-    Official SDK Reference:
+    官方 SDK 参考：
     https://github.com/modelcontextprotocol/python-sdk/blob/main/README.md
     """
 
@@ -142,24 +139,24 @@ class MCPServerConnection:
         self,
         name: str,
         transport: TransportType = "stdio",
-        # stdio parameters
+        # stdio 参数
         command: str | None = None,
         args: list[str] | None = None,
         env: dict[str, str] | None = None,
-        # http/sse parameters
+        # http/sse 参数
         url: str | None = None,
         headers: dict[str, str] | None = None,
     ):
-        """Initialize MCP server connection parameters.
+        """初始化 MCP 服务器连接参数。
 
         Args:
-            name: Server name for identification
-            transport: Transport type ('stdio', 'sse', or 'http')
-            command: Command to start the MCP server (stdio only)
-            args: Arguments for the command (stdio only)
-            env: Environment variables for the server process (stdio only)
-            url: Server URL (sse/http only)
-            headers: HTTP headers (sse/http only)
+            name: 用于标识的服务器名称
+            transport: 传输类型（'stdio'、'sse' 或 'http'）
+            command: 启动 MCP 服务器的命令（仅 stdio）
+            args: 命令的参数（仅 stdio）
+            env: 服务器进程的环境变量（仅 stdio）
+            url: 服务器 URL（仅 sse/http）
+            headers: HTTP 头（仅 sse/http）
         """
         self.name = name
         self.transport = transport
@@ -176,29 +173,29 @@ class MCPServerConnection:
         self.tools: list[MCPTool] = []
 
     async def connect(self) -> bool:
-        """Connect to the MCP server using official SDK patterns.
+        """使用官方 SDK 模式连接到 MCP 服务器。
 
-        This follows the official SDK connection pattern for different transports:
+        针对不同传输方式遵循官方 SDK 连接模式：
 
-        **stdio transport**:
-        1. Create StdioServerParameters with command, args, env
-        2. Use stdio_client() as async context manager
-        3. Create ClientSession with read/write streams
+        **stdio 传输**：
+        1. 使用 command、args、env 创建 StdioServerParameters
+        2. 使用 stdio_client() 作为异步上下文管理器
+        3. 使用读/写流创建 ClientSession
 
-        **sse transport**:
-        1. Use sse_client(url, headers) as async context manager
-        2. Create ClientSession with read/write streams
+        **sse 传输**：
+        1. 使用 sse_client(url, headers) 作为异步上下文管理器
+        2. 使用读/写流创建 ClientSession
 
-        **http transport**:
-        1. Use streamablehttp_client(url, headers) as async context manager
-        2. Create ClientSession with read/write/session_id streams
+        **http 传输**：
+        1. 使用 streamablehttp_client(url, headers) 作为异步上下文管理器
+        2. 使用读/写/session_id 流创建 ClientSession
 
-        Then for all transports:
-        4. Initialize the session
-        5. List available tools
+        然后对于所有传输方式：
+        4. 初始化会话
+        5. 列出可用工具
 
         Returns:
-            True if connection successful, False otherwise
+            连接成功返回 True，否则返回 False
         """
         try:
             # Use AsyncExitStack to manage multiple async context managers
@@ -292,9 +289,9 @@ class MCPServerConnection:
             return False
 
     async def disconnect(self):
-        """Properly disconnect from the MCP server.
+        """正确断开与 MCP 服务器的连接。
 
-        Cleanup follows official SDK pattern using AsyncExitStack.
+        使用 AsyncExitStack 按照官方 SDK 模式进行清理。
         """
         if self.exit_stack:
             # AsyncExitStack handles all cleanup properly
@@ -308,18 +305,18 @@ _mcp_connections: list[MCPServerConnection] = []
 
 
 async def load_mcp_tools_async(config_path: str = "mcp.json") -> list[Tool]:
-    """Load MCP tools from config file using official SDK.
+    """使用官方 SDK 从配置文件加载 MCP 工具。
 
-    This function implements the MCP client pattern from official SDK:
-    1. Read mcp.json config file
-    2. Parse mcpServers configuration
-    3. Connect to each enabled server via stdio/sse/http
-    4. Fetch tool definitions from each server
-    5. Wrap tools in our Tool interface
+    此函数实现官方 SDK 的 MCP 客户端模式：
+    1. 读取 mcp.json 配置文件
+    2. 解析 mcpServers 配置
+    3. 通过 stdio/sse/http 连接到每个启用的服务器
+    4. 从每个服务器获取工具定义
+    5. 将工具包装到我们的 Tool 接口
 
-    Config file format supports multiple transports:
+    配置文件格式支持多种传输方式：
 
-    **stdio transport** (local process):
+    **stdio 传输**（本地进程）：
     ```json
     {
       "mcpServers": {
@@ -333,7 +330,7 @@ async def load_mcp_tools_async(config_path: str = "mcp.json") -> list[Tool]:
     }
     ```
 
-    **http/sse transport** (remote endpoint):
+    **http/sse 传输**（远程端点）：
     ```json
     {
       "mcpServers": {
@@ -348,10 +345,10 @@ async def load_mcp_tools_async(config_path: str = "mcp.json") -> list[Tool]:
     ```
 
     Args:
-        config_path: Path to MCP configuration file (default: "mcp.json")
+        config_path: MCP 配置文件路径（默认："mcp.json"）
 
     Returns:
-        List of Tool objects representing MCP tools
+        表示 MCP 工具的 Tool 对象列表
 
     Example:
         ```python
@@ -450,19 +447,18 @@ async def load_mcp_tools_async(config_path: str = "mcp.json") -> list[Tool]:
 
 
 async def cleanup_mcp_connections():
-    """Clean up all MCP connections.
+    """清理所有 MCP 连接。
 
-    This should be called on application shutdown to properly close
-    all MCP server connections.
+    应在应用程序关闭时调用，以正确关闭所有 MCP 服务器连接。
 
     Example:
         ```python
-        # In FastAPI lifespan
+        # 在 FastAPI 生命周期中
         @asynccontextmanager
         async def lifespan(app: FastAPI):
-            # Startup
+            # 启动
             yield
-            # Shutdown
+            # 关闭
             await cleanup_mcp_connections()
         ```
     """

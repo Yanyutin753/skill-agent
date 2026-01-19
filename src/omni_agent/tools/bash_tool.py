@@ -1,5 +1,4 @@
-"""Bash command execution tool."""
-
+"""Bash 命令执行工具。"""
 import asyncio
 import subprocess
 from typing import Any
@@ -7,7 +6,7 @@ from .base import Tool, ToolResult
 
 
 class BashTool(Tool):
-    """Execute bash commands."""
+    """执行 bash 命令。"""
 
     @property
     def name(self) -> str:
@@ -39,7 +38,7 @@ class BashTool(Tool):
 
     @property
     def instructions(self) -> str:
-        """Bash tool usage instructions."""
+        """Bash 工具使用说明。"""
         return """
 <bash_tool_usage>
 When using the bash tool:
@@ -53,11 +52,11 @@ When using the bash tool:
 
     @property
     def add_instructions_to_prompt(self) -> bool:
-        """Add bash tool instructions to system prompt."""
+        """是否将 bash 工具说明添加到系统提示。"""
         return True
 
     async def execute(self, command: str, timeout: int = 30) -> ToolResult:
-        """Execute bash command."""
+        """执行 bash 命令。"""
         try:
             # Run command with timeout
             process = await asyncio.create_subprocess_shell(

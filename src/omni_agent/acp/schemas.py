@@ -1,8 +1,8 @@
-"""ACP (Agent Client Protocol) data schemas.
+"""ACP（Agent 客户端协议）数据模式。
 
-Based on Zed's Agent Client Protocol:
-- Protocol spec: https://agentclientprotocol.com/
-- Schema: https://github.com/zed-industries/agent-client-protocol/blob/main/schema/schema.json
+基于 Zed 的 Agent 客户端协议：
+- 协议规范：https://agentclientprotocol.com/
+- Schema：https://github.com/zed-industries/agent-client-protocol/blob/main/schema/schema.json
 """
 
 from enum import Enum

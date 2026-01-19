@@ -1,5 +1,4 @@
-"""LLM client using LiteLLM for multi-provider support."""
-
+"""使用 LiteLLM 的 LLM 客户端，支持多个提供者。"""
 import json
 import logging
 from typing import Any, AsyncIterator

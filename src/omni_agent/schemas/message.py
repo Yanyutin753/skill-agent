@@ -1,5 +1,4 @@
-"""Message and response schemas."""
-
+"""消息和响应模式。"""
 from typing import Any, Optional, List
 from pydantic import BaseModel, Field
 

@@ -1,5 +1,4 @@
-"""Trace viewer for analyzing workflow execution."""
-
+"""追踪查看器，用于分析工作流执行。"""
 import json
 from pathlib import Path
 from typing import Optional

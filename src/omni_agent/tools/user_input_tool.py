@@ -1,9 +1,8 @@
-"""User input tool for human-in-the-loop interaction.
+"""用户输入工具，用于人机交互循环。
 
-This tool allows the agent to pause execution and request additional
-information from the user when needed.
+此工具允许 agent 在需要时暂停执行并向用户请求额外信息。
 
-Inspired by agno's UserControlFlowTools implementation.
+灵感来自 agno 的 UserControlFlowTools 实现。
 """
 
 from typing import Any, Optional
@@ -13,36 +12,34 @@ from omni_agent.tools.base import Tool, ToolResult
 
 
 class UserInputField(BaseModel):
-    """Schema for a single user input field."""
-    field_name: str = Field(..., description="The name of the field to get input for")
+    """单个用户输入字段的模式。"""
+    field_name: str = Field(..., description="需要获取输入的字段名称")
     field_type: str = Field(
         default="str",
-        description="The type of the field (str, int, float, bool, list, dict)"
+        description="字段类型 (str, int, float, bool, list, dict)"
     )
-    field_description: str = Field(..., description="A description of the field")
-    value: Optional[Any] = Field(default=None, description="The value provided by user")
+    field_description: str = Field(..., description="字段描述")
+    value: Optional[Any] = Field(default=None, description="用户提供的值")
 
 
 class UserInputRequest(BaseModel):
-    """Request for user input with multiple fields."""
+    """包含多个字段的用户输入请求。"""
     fields: list[UserInputField] = Field(
         default_factory=list,
-        description="List of fields requiring user input"
+        description="需要用户输入的字段列表"
     )
     context: Optional[str] = Field(
         default=None,
-        description="Additional context explaining why input is needed"
+        description="解释为什么需要输入的附加上下文"
     )
 
 
 class GetUserInputTool(Tool):
-    """Tool for requesting user input during agent execution.
-    
-    When the agent needs additional information to proceed, it can call this
-    tool to pause execution and request input from the user.
-    
-    The tool execution itself doesn't do anything - the agent loop detects
-    this tool call and handles the pause/resume logic.
+    """在 agent 执行期间请求用户输入的工具。
+
+    当 agent 需要额外信息才能继续时，可以调用此工具暂停执行并向用户请求输入。
+
+    工具执行本身不做任何事情 - agent 循环检测到此工具调用后会处理暂停/恢复逻辑。
     """
     
     TOOL_NAME = "get_user_input"
@@ -151,17 +148,17 @@ You have access to the `get_user_input` tool to request information from the use
         context: Optional[str] = None,
         **kwargs
     ) -> ToolResult:
-        """Execute the tool - actual logic is handled by agent loop.
-        
-        This method is called but the real handling happens in the agent's
-        execution loop which detects this tool and pauses for user input.
-        
+        """执行工具 - 实际逻辑由 agent 循环处理。
+
+        此方法会被调用，但真正的处理发生在 agent 的执行循环中，
+        它会检测到此工具并暂停等待用户输入。
+
         Args:
-            user_input_fields: List of field definitions requiring input
-            context: Optional context explaining why input is needed
-            
+            user_input_fields: 需要输入的字段定义列表
+            context: 解释为什么需要输入的可选上下文
+
         Returns:
-            ToolResult indicating the request was registered
+            表示请求已注册的 ToolResult
         """
         # The actual pause/resume logic is handled by the agent loop
         # This just returns a placeholder result
@@ -172,18 +169,18 @@ You have access to the `get_user_input` tool to request information from the use
 
 
 def is_user_input_tool_call(tool_name: str) -> bool:
-    """Check if a tool call is for user input."""
+    """检查工具调用是否为用户输入工具。"""
     return tool_name == GetUserInputTool.TOOL_NAME
 
 
 def parse_user_input_fields(arguments: dict[str, Any]) -> list[UserInputField]:
-    """Parse user input fields from tool call arguments.
-    
+    """从工具调用参数中解析用户输入字段。
+
     Args:
-        arguments: Tool call arguments containing user_input_fields
-        
+        arguments: 包含 user_input_fields 的工具调用参数
+
     Returns:
-        List of UserInputField objects
+        UserInputField 对象列表
     """
     fields = []
     for field_data in arguments.get("user_input_fields", []):

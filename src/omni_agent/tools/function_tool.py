@@ -1,5 +1,4 @@
-"""Function tool - dynamically create tools from callable functions."""
-
+"""函数工具 - 从可调用函数动态创建工具。"""
 import inspect
 from typing import Any, Callable, get_type_hints, Optional
 
@@ -7,7 +6,7 @@ from omni_agent.tools.base import Tool, ToolResult
 
 
 def _extract_docstring(func: Callable) -> str:
-    """Extract description from function docstring."""
+    """从函数文档字符串中提取描述。"""
     doc = inspect.getdoc(func)
     if not doc:
         return func.__name__
@@ -16,9 +15,9 @@ def _extract_docstring(func: Callable) -> str:
 
 
 def _generate_json_schema(func: Callable) -> dict[str, Any]:
-    """Generate JSON Schema from function signature.
+    """从函数签名生成 JSON Schema。
 
-    Simple implementation that handles basic types.
+    处理基本类型的简单实现。
     """
     sig = inspect.signature(func)
     type_hints = get_type_hints(func)
@@ -54,7 +53,7 @@ def _generate_json_schema(func: Callable) -> dict[str, Any]:
 
 
 def _type_to_json_schema(python_type: type) -> dict[str, Any]:
-    """Convert Python type to JSON Schema type."""
+    """将 Python 类型转换为 JSON Schema 类型。"""
     # Handle Optional types
     origin = getattr(python_type, '__origin__', None)
     if origin is type(None) or str(python_type).startswith('typing.Optional'):
@@ -92,9 +91,9 @@ def _type_to_json_schema(python_type: type) -> dict[str, Any]:
 
 
 class FunctionTool(Tool):
-    """A tool created from a callable function.
+    """从可调用函数创建的工具。
 
-    This allows creating tools dynamically without subclassing Tool.
+    允许动态创建工具而无需继承 Tool 类。
     """
 
     def __init__(
@@ -104,13 +103,13 @@ class FunctionTool(Tool):
         description: Optional[str] = None,
         parameters: Optional[dict[str, Any]] = None,
     ):
-        """Initialize FunctionTool.
+        """初始化 FunctionTool。
 
         Args:
-            func: The callable function to wrap
-            name: Tool name (defaults to function name)
-            description: Tool description (defaults to first line of docstring)
-            parameters: JSON Schema for parameters (auto-generated if not provided)
+            func: 要包装的可调用函数
+            name: 工具名称（默认为函数名）
+            description: 工具描述（默认为文档字符串的第一行）
+            parameters: 参数的 JSON Schema（未提供时自动生成）
         """
         self._func = func
         self._name = name or func.__name__
@@ -130,7 +129,7 @@ class FunctionTool(Tool):
         return self._parameters
 
     async def execute(self, **kwargs) -> ToolResult:
-        """Execute the wrapped function."""
+        """执行包装的函数。"""
         try:
             # Check if function is async
             if inspect.iscoroutinefunction(self._func):
@@ -158,20 +157,20 @@ def create_tool_from_function(
     description: Optional[str] = None,
     parameters: Optional[dict[str, Any]] = None,
 ) -> Tool:
-    """Create a Tool from a callable function.
+    """从可调用函数创建 Tool。
 
     Args:
-        func: Callable function to wrap
-        name: Optional tool name (defaults to function name)
-        description: Optional description (defaults to docstring)
-        parameters: Optional JSON Schema (auto-generated if not provided)
+        func: 要包装的可调用函数
+        name: 可选的工具名称（默认为函数名）
+        description: 可选的描述（默认为文档字符串）
+        parameters: 可选的 JSON Schema（未提供时自动生成）
 
     Returns:
-        Tool instance
+        Tool 实例
 
     Example:
         >>> def my_tool(query: str) -> str:
-        ...     '''Search for information'''
+        ...     '''搜索信息'''
         ...     return f"Results for: {query}"
         >>> tool = create_tool_from_function(my_tool)
         >>> result = await tool.execute(query="test")

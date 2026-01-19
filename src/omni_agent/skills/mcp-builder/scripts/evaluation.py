@@ -1,8 +1,7 @@
-"""MCP Server Evaluation Harness
+"""MCP 服务器评估测试框架。
 
 This script evaluates MCP servers by running test questions against them using Claude.
 """
-
 import argparse
 import asyncio
 import json

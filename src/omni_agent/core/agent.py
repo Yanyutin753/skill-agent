@@ -1,5 +1,4 @@
-"""Core Agent implementation with unified architecture."""
-
+"""核心 Agent 实现，采用统一架构。"""
 import json
 import time
 from abc import ABC

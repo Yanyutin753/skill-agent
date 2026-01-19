@@ -1,9 +1,8 @@
-"""File-based memory management using AGENTS.md convention.
+"""基于文件的内存管理，使用 AGENTS.md 约定。
 
 Implements the AGENTS.md protocol for AI agent memory management.
 Each user/session combination has its own AGENTS.md file for isolation.
 """
-
 import logging
 import os
 import shutil

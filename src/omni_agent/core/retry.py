@@ -1,5 +1,4 @@
-"""Retry logic for API calls with exponential backoff."""
-
+"""API 调用的重试逻辑，支持指数退避。"""
 import asyncio
 import logging
 from dataclasses import dataclass

@@ -1,5 +1,4 @@
-"""Team orchestration for multi-agent collaboration."""
-
+"""团队编排，用于多 Agent 协作。"""
 import asyncio
 import time
 from typing import Any, Dict, List, Optional

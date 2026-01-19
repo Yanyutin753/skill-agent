@@ -1,5 +1,4 @@
-"""Trace and run log viewing endpoints."""
-
+"""追踪和运行日志查看端点。"""
 import json
 from pathlib import Path
 from typing import Optional

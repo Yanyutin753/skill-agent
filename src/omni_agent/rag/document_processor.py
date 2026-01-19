@@ -1,5 +1,4 @@
-"""Document processor for parsing and chunking files."""
-
+"""文档处理器，用于解析和分块文件。"""
 from pathlib import Path
 from typing import BinaryIO
 
@@ -9,7 +8,7 @@ from omni_agent.core.config import settings
 
 
 class DocumentProcessor:
-    """Process documents: parse content and split into chunks."""
+    """处理文档：解析内容并分块。"""
 
     SUPPORTED_TYPES = {
         ".txt": "text/plain",
@@ -26,16 +25,16 @@ class DocumentProcessor:
         self.chunk_overlap = chunk_overlap or settings.CHUNK_OVERLAP
 
     def get_file_type(self, filename: str) -> str | None:
-        """Get file type from filename extension."""
+        """从文件名扩展名获取文件类型。"""
         suffix = Path(filename).suffix.lower()
         return self.SUPPORTED_TYPES.get(suffix)
 
     def is_supported(self, filename: str) -> bool:
-        """Check if file type is supported."""
+        """检查文件类型是否支持。"""
         return self.get_file_type(filename) is not None
 
     async def extract_text(self, file: BinaryIO, filename: str) -> str:
-        """Extract text content from file."""
+        """从文件中提取文本内容。"""
         file_type = self.get_file_type(filename)
 
         if file_type == "application/pdf":
@@ -46,7 +45,7 @@ class DocumentProcessor:
             raise ValueError(f"Unsupported file type: {filename}")
 
     def _extract_text(self, file: BinaryIO) -> str:
-        """Extract text from plain text or markdown file."""
+        """从纯文本或 markdown 文件中提取文本。"""
         content = file.read()
         if isinstance(content, bytes):
             # Try UTF-8 first, fallback to other encodings
@@ -59,7 +58,7 @@ class DocumentProcessor:
         return content
 
     def _extract_pdf(self, file: BinaryIO) -> str:
-        """Extract text from PDF file."""
+        """从 PDF 文件中提取文本。"""
         reader = PdfReader(file)
         text_parts: list[str] = []
 
@@ -71,7 +70,7 @@ class DocumentProcessor:
         return "\n\n".join(text_parts)
 
     def chunk_text(self, text: str) -> list[dict]:
-        """Split text into overlapping chunks."""
+        """将文本分割成重叠的分块。"""
         if not text.strip():
             return []
 
@@ -125,15 +124,15 @@ class DocumentProcessor:
         file: BinaryIO,
         filename: str,
     ) -> tuple[str, list[dict]]:
-        """Process file: extract text and split into chunks.
+        """处理文件：提取文本并分块。
 
         Returns:
-            Tuple of (full_text, chunks)
+            (完整文本, 分块列表) 的元组
         """
         text = await self.extract_text(file, filename)
         chunks = self.chunk_text(text)
         return text, chunks
 
 
-# Global document processor instance
+# 全局文档处理器实例
 document_processor = DocumentProcessor()

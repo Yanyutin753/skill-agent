@@ -1,4 +1,4 @@
-"""Run context for agent execution.
+"""Agent 执行的运行上下文。
 
 IMPORTANT: This module is for internal framework use. Users should not manually
 create RunContext instances. Instead, use the session_id and user_id parameters
@@ -6,7 +6,6 @@ when calling team.run() or agent.run().
 
 See docs/RUNCONTEXT_DESIGN.md for design rationale.
 """
-
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 

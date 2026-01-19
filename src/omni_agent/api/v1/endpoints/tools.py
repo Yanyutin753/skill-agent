@@ -1,5 +1,4 @@
-"""Tools listing endpoints."""
-
+"""工具列表端点。"""
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
