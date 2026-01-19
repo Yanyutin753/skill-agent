@@ -103,7 +103,7 @@ async def initialize_mcp_tools() -> None:
     try:
         import sys
 
-        # Force flush to ensure output is visible
+        # 强制刷新以确保输出可见
         debug_log = open("/tmp/mcp_init_debug.log", "w")
         debug_log.write("=== MCP Initialization Debug Log ===\n")
         debug_log.write(f"ENABLE_MCP: {settings.ENABLE_MCP}\n")
@@ -186,7 +186,7 @@ async def initialize_session_manager() -> None:
 
     try:
         if backend == "file":
-            # File storage
+            # 文件存储
             base_path = Path(settings.SESSION_STORAGE_PATH).expanduser()
             base_dir = base_path.parent
             base_dir.mkdir(parents=True, exist_ok=True)
@@ -204,7 +204,7 @@ async def initialize_session_manager() -> None:
             print(f"✅ Session managers initialized (file): {base_dir}")
 
         elif backend == "redis":
-            # Redis storage
+            # Redis 存储
             _agent_session_manager = UnifiedAgentSessionManager(
                 backend="redis",
                 redis_host=settings.SESSION_REDIS_HOST,
@@ -224,7 +224,7 @@ async def initialize_session_manager() -> None:
             print(f"✅ Session managers initialized (redis): {settings.SESSION_REDIS_HOST}:{settings.SESSION_REDIS_PORT}")
 
         elif backend in ("postgres", "postgresql"):
-            # PostgreSQL storage
+            # PostgreSQL 存储
             _agent_session_manager = UnifiedAgentSessionManager(
                 backend="postgres",
                 postgres_dsn=settings.postgres_dsn,
@@ -242,7 +242,7 @@ async def initialize_session_manager() -> None:
         else:
             raise ValueError(f"Unknown session backend: {backend}")
 
-        # Auto-cleanup old sessions on startup
+        # 启动时自动清理过期会话
         agent_sessions = await _agent_session_manager.get_all_sessions()
         team_sessions = await _team_session_manager.get_all_sessions()
         agent_cleaned = await _agent_session_manager.cleanup_old_sessions(
@@ -259,7 +259,7 @@ async def initialize_session_manager() -> None:
         error_msg = f"❌ Session backend '{backend}' requires additional dependencies: {e}"
         print(error_msg)
         print("   Falling back to file storage...")
-        # Fallback to file storage
+        # 回退到文件存储
         base_path = Path(settings.SESSION_STORAGE_PATH).expanduser()
         base_dir = base_path.parent
         base_dir.mkdir(parents=True, exist_ok=True)
@@ -279,7 +279,7 @@ async def initialize_session_manager() -> None:
         error_msg = f"❌ Error during session manager initialization: {e}"
         print(error_msg)
         print(traceback.format_exc())
-        # Create fallback file-based session managers
+        # 创建回退的文件存储会话管理器
         _agent_session_manager = UnifiedAgentSessionManager(backend="file")
         _team_session_manager = UnifiedTeamSessionManager(backend="file")
         print("⚠️  Falling back to default file session storage")
@@ -405,27 +405,27 @@ def get_agent(
     [已废弃] 此方法保留用于向后兼容。
     建议使用 AgentFactory.create_agent() 获取动态配置的 Agent。
     """
-    # Determine workspace directory
+    # 确定工作空间目录
     workspace_path = Path(settings.AGENT_WORKSPACE_DIR)
     workspace_path.mkdir(parents=True, exist_ok=True)
 
-    # Get all tools
+    # 获取所有工具
     tools = get_tools(str(workspace_path))
 
-    # Load system prompt
+    # 加载系统提示词
     system_prompt = settings.SYSTEM_PROMPT
 
-    # Inject skills metadata if enabled
+    # 如果启用则注入 Skills 元数据
     if settings.ENABLE_SKILLS:
         _, skill_loader = create_skill_tools(settings.SKILLS_DIR)
         if skill_loader:
             skills_metadata = skill_loader.get_skills_metadata_prompt()
             system_prompt = system_prompt.replace("{SKILLS_METADATA}", skills_metadata)
     else:
-        # Remove placeholder if skills not enabled
+        # 未启用 Skills 时移除占位符
         system_prompt = system_prompt.replace("{SKILLS_METADATA}", "")
 
-    # Create agent
+    # 创建 Agent
     return Agent(
         llm_client=llm_client,
         system_prompt=system_prompt,
@@ -478,22 +478,22 @@ class AgentFactory:
         workspace_manager = get_workspace_manager(base_workspace)
         workspace_path = workspace_manager.get_session_workspace(session_id)
 
-        # Build tool list based on configuration (pass session_id for sandbox isolation)
+        # 根据配置构建工具列表（传入 session_id 用于沙箱隔离）
         tools = await self._build_tools(config, str(workspace_path), session_id)
 
-        # Add SpawnAgentTool if enabled (must be done after other tools are built)
+        # 如果启用则添加 SpawnAgentTool（必须在其他工具构建完成后进行）
         tools = self._add_spawn_agent_tool(
             tools=tools,
             config=config,
             workspace_dir=str(workspace_path),
             llm_client=llm_client,
-            current_depth=0,  # Root agent starts at depth 0
+            current_depth=0,  # 根 Agent 从深度 0 开始
         )
 
-        # Build system prompt
+        # 构建系统提示词
         system_prompt = config.system_prompt or self.settings.SYSTEM_PROMPT
 
-        # Inject skills metadata if enabled
+        # 如果启用则注入 Skills 元数据
         enable_skills = config.enable_skills if config.enable_skills is not None else self.settings.ENABLE_SKILLS
         if enable_skills:
             _, skill_loader = create_skill_tools(self.settings.SKILLS_DIR)
@@ -503,7 +503,7 @@ class AgentFactory:
         else:
             system_prompt = system_prompt.replace("{SKILLS_METADATA}", "")
 
-        # Create agent
+        # 创建 Agent
         return Agent(
             llm_client=llm_client,
             system_prompt=system_prompt,
@@ -538,14 +538,14 @@ class AgentFactory:
 
         tools = []
 
-        # Check if sandbox should be used
+        # 检查是否应该使用沙箱
         use_sandbox = (
             self.settings.ENABLE_SANDBOX
             and _sandbox_manager is not None
             and session_id is not None
         )
 
-        # Base tools - use sandbox tools if enabled, otherwise local tools
+        # 基础工具 - 如果启用沙箱则使用沙箱工具，否则使用本地工具
         enable_base = config.enable_base_tools if config.enable_base_tools is not None else True
         if enable_base:
             if use_sandbox:
@@ -571,11 +571,11 @@ class AgentFactory:
                     GetUserInputTool(),
                 ]
 
-            # Build tool name mapping (supports both actual names and short aliases)
+            # 构建工具名称映射（支持实际名称和短别名）
             base_tools_map = {}
             for tool in all_base_tools:
                 base_tools_map[tool.name] = tool
-                # Add short aliases for convenience
+                # 添加短别名以方便使用
                 if tool.name == "read_file":
                     base_tools_map["read"] = tool
                 elif tool.name == "write_file":
@@ -583,9 +583,9 @@ class AgentFactory:
                 elif tool.name == "edit_file":
                     base_tools_map["edit"] = tool
 
-            # Filter if specific tools requested
+            # 如果请求了特定工具则进行过滤
             if config.base_tools_filter:
-                # Deduplicate tools (in case both alias and real name are used)
+                # 工具去重（以防别名和实际名称同时使用）
                 seen = set()
                 for name in config.base_tools_filter:
                     if name in base_tools_map:
@@ -596,24 +596,24 @@ class AgentFactory:
             else:
                 tools.extend(all_base_tools)
 
-        # Skills
+        # Skill 工具
         enable_skills = config.enable_skills if config.enable_skills is not None else self.settings.ENABLE_SKILLS
         if enable_skills:
             skill_tools, _ = create_skill_tools(self.settings.SKILLS_DIR)
             if skill_tools:
                 tools.extend(skill_tools)
 
-        # MCP tools
+        # MCP 工具
         enable_mcp = config.enable_mcp_tools if config.enable_mcp_tools is not None else self.settings.ENABLE_MCP
         if enable_mcp:
-            # Use custom MCP config if provided
+            # 如果提供了自定义 MCP 配置则使用
             if config.mcp_config_path:
                 mcp_tools = await load_mcp_tools_async(config.mcp_config_path)
             else:
-                # Use global MCP tools
+                # 使用全局 MCP 工具
                 mcp_tools = _mcp_tools
 
-            # Filter if specific tools requested
+            # 如果请求了特定工具则进行过滤
             if config.mcp_tools_filter and mcp_tools:
                 tools.extend([
                     tool for tool in mcp_tools
@@ -622,7 +622,7 @@ class AgentFactory:
             elif mcp_tools:
                 tools.extend(mcp_tools)
 
-        # RAG tool
+        # RAG 工具
         enable_rag = config.enable_rag if config.enable_rag is not None else self.settings.ENABLE_RAG
         if enable_rag:
             tools.append(RAGTool())
@@ -658,11 +658,11 @@ class AgentFactory:
 
         max_depth = config.spawn_agent_max_depth or self.settings.SPAWN_AGENT_MAX_DEPTH
 
-        # Don't add spawn_agent if already at max depth
+        # 如果已达到最大深度则不添加 spawn_agent
         if current_depth >= max_depth:
             return tools
 
-        # Create SpawnAgentTool with current tools as parent tools
+        # 使用当前工具作为父工具创建 SpawnAgentTool
         parent_tools = {tool.name: tool for tool in tools}
 
         spawn_tool = SpawnAgentTool(
@@ -698,12 +698,12 @@ def get_builtin_research_team(
     """
     from omni_agent.core.builtin_teams import create_web_research_team
 
-    # Get all available tools (including MCP tools)
+    # 获取所有可用工具（包括 MCP 工具）
     workspace_path = Path(settings.AGENT_WORKSPACE_DIR)
     workspace_path.mkdir(parents=True, exist_ok=True)
     tools = get_tools(str(workspace_path))
 
-    # Create and return the team
+    # 创建并返回团队
     return create_web_research_team(
         llm_client=llm_client,
         available_tools=tools,

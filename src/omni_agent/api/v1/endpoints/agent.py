@@ -43,46 +43,46 @@ async def run_agent(
     session_manager: Optional[UnifiedAgentSessionManager] = Depends(get_agent_session_manager),
     research_team: Team = Depends(get_builtin_research_team),
 ) -> AgentResponse:
-    """Run agent with a task.
+    """执行 Agent 任务。
 
     Args:
-        request: Agent request with message and optional dynamic configuration
-        agent_factory: Agent factory for creating agents with dynamic config
-        llm_client: LLM client instance
-        settings: Application settings
-        session_manager: Session manager for multi-turn conversation
-        research_team: Builtin web research team (injected when use_team=true)
+        request: Agent 请求，包含消息和可选的动态配置
+        agent_factory: Agent 工厂，用于创建动态配置的 Agent
+        llm_client: LLM 客户端实例
+        settings: 应用配置
+        session_manager: 会话管理器，用于多轮对话
+        research_team: 内置的 Web 研究团队（use_team=true 时注入）
 
     Returns:
-        Agent response with result and execution logs
+        Agent 响应，包含结果和执行日志
 
-    **Team mode:**
-    - Set `use_team: true` to use builtin web research team
-    - Team includes web_search_agent (exa) and web_spider_agent (firecrawl)
-    - Leader coordinates search and crawling tasks automatically
+    **团队模式:**
+    - 设置 `use_team: true` 使用内置的 Web 研究团队
+    - 团队包含 web_search_agent (exa) 和 web_spider_agent (firecrawl)
+    - Leader 自动协调搜索和爬取任务
 
-    **Dynamic configuration:**
-    - Use `config` field to customize agent behavior per request
-    - Override workspace_dir, max_steps, system_prompt, tool selection, etc.
-    - If not provided, uses default settings
+    **动态配置:**
+    - 使用 `config` 字段按请求自定义 Agent 行为
+    - 可覆盖 workspace_dir, max_steps, system_prompt, 工具选择等
+    - 未提供时使用默认配置
 
-    **Session support:**
-    - Provide `session_id` to enable multi-turn conversation with history context
-    - Sessions are persisted and can be resumed across requests
+    **会话支持:**
+    - 提供 `session_id` 启用带历史上下文的多轮对话
+    - 会话会持久化并可跨请求恢复
 
-    **Example with team mode:**
+    **团队模式示例:**
     ```json
     {
-        "message": "Search for AI news and crawl the top article",
+        "message": "搜索 AI 新闻并爬取热门文章",
         "use_team": true,
         "session_id": "user-123"
     }
     ```
 
-    **Example with dynamic config:**
+    **动态配置示例:**
     ```json
     {
-        "message": "Analyze this code",
+        "message": "分析这段代码",
         "config": {
             "workspace_dir": "/tmp/custom-workspace",
             "max_steps": 20,
@@ -102,9 +102,9 @@ async def run_agent(
     run_id = str(uuid4())
 
     try:
-        # Check if team mode is enabled
+        # 检查是否启用团队模式
         if request.use_team:
-            # Use builtin team instead of single agent
+            # 使用内置团队而不是单个 Agent
             response = await research_team.run(
                 message=request.message,
                 session_id=request.session_id,
@@ -112,52 +112,52 @@ async def run_agent(
                 max_steps=request.config.max_steps if request.config else settings.AGENT_MAX_STEPS,
             )
 
-            # Convert TeamRunResponse to AgentResponse format
+            # 将 TeamRunResponse 转换为 AgentResponse 格式
             return AgentResponse(
                 success=response.success,
                 message=response.message,
                 steps=response.total_steps,
-                logs=[],  # Team doesn't expose detailed logs in current impl
+                logs=[],  # 当前实现中团队不暴露详细日志
                 session_id=request.session_id,
                 run_id=run_id,
             )
 
-        # Original single agent mode
-        # Handle backward compatibility
+        # 原始单 Agent 模式
+        # 处理向后兼容
         config = request.config
         if config is None:
             config = AgentConfig()
 
-        # Support deprecated fields
+        # 支持已废弃的字段
         if request.workspace_dir and not config.workspace_dir:
             config.workspace_dir = request.workspace_dir
         if request.max_steps and not config.max_steps:
             config.max_steps = request.max_steps
 
-        # Create agent with dynamic configuration and session-isolated workspace
+        # 使用动态配置和会话隔离的工作空间创建 Agent
         agent = await agent_factory.create_agent(llm_client, config, session_id=request.session_id)
 
-        # Load history context if session_id provided
+        # 如果提供了 session_id 则加载历史上下文
         if request.session_id and session_manager:
             session = await session_manager.get_session(
                 session_id=request.session_id,
                 agent_name="default"
             )
-            # Get history messages and inject into agent
+            # 获取历史消息并注入到 Agent
             history_messages = session.get_history_messages(
                 num_runs=request.num_history_runs or settings.SESSION_HISTORY_RUNS
             )
             for msg in history_messages:
                 agent.messages.append(Message(role=msg["role"], content=msg["content"]))
 
-        # Add user message and run
+        # 添加用户消息并运行
         agent.add_user_message(request.message)
         result, logs = await agent.run()
 
-        # Check if agent is waiting for user input
+        # 检查 Agent 是否正在等待用户输入
         if agent.is_waiting_for_input:
-            # Store agent state for resume (in a real app, use proper state management)
-            # For now, we return the input request and expect client to call /run/resume
+            # 存储 Agent 状态以便恢复（在实际应用中应使用适当的状态管理）
+            # 目前我们返回输入请求，期望客户端调用 /run/resume
             return AgentResponse(
                 success=True,
                 message=result,
@@ -169,11 +169,11 @@ async def run_agent(
                 input_request=agent.pending_user_input,
             )
 
-        # Determine success
+        # 判断是否成功
         success = bool(result and not result.startswith("LLM call failed"))
         steps = len([log for log in logs if log.get("type") == "step"])
 
-        # Save to session if session_id provided
+        # 如果提供了 session_id 则保存到会话
         if request.session_id and session_manager:
             run_record = AgentRunRecord(
                 run_id=run_id,
@@ -186,7 +186,7 @@ async def run_agent(
             )
             await session_manager.add_run(request.session_id, run_record)
 
-        # Save to FileMemory (AGENTS.md)
+        # 保存到 FileMemory (AGENTS.md)
         if request.session_id:
             memory = FileMemory(
                 user_id=request.user_id or "default",
@@ -209,7 +209,7 @@ async def run_agent(
         )
 
     except Exception as e:
-        # Save error to session if session_id provided
+        # 如果提供了 session_id 则保存错误到会话
         if request.session_id and session_manager:
             run_record = AgentRunRecord(
                 run_id=run_id,
@@ -235,23 +235,23 @@ async def run_agent_stream(
     settings: Settings = Depends(get_settings),
     session_manager: Optional[UnifiedAgentSessionManager] = Depends(get_agent_session_manager),
 ):
-    """Run agent with streaming output using Server-Sent Events.
+    """使用 Server-Sent Events 流式输出执行 Agent 任务。
 
     Args:
-        request: Agent request with message and optional dynamic configuration
-        agent_factory: Agent factory for creating agents with dynamic config
-        llm_client: LLM client instance
-        settings: Application settings
-        session_manager: Session manager for multi-turn conversation
+        request: Agent 请求，包含消息和可选的动态配置
+        agent_factory: Agent 工厂，用于创建动态配置的 Agent
+        llm_client: LLM 客户端实例
+        settings: 应用配置
+        session_manager: 会话管理器，用于多轮对话
 
     Returns:
-        StreamingResponse with SSE events
+        StreamingResponse: SSE 事件流
 
-    **Dynamic configuration:**
-    - Same as /run endpoint, use `config` field for customization
+    **动态配置:**
+    - 与 /run 端点相同，使用 `config` 字段自定义
 
-    **Session support:**
-    - Same as /run endpoint, provide `session_id` for multi-turn conversation
+    **会话支持:**
+    - 与 /run 端点相同，提供 `session_id` 启用多轮对话
     """
     if not settings.LLM_API_KEY:
         raise HTTPException(
@@ -262,26 +262,26 @@ async def run_agent_stream(
     run_id = str(uuid4())
 
     async def event_generator():
-        """Generate SSE events from agent stream."""
+        """从 Agent 执行流生成 SSE 事件。"""
         content_buffer = ""
         steps = 0
 
         try:
-            # Handle backward compatibility
+            # 处理向后兼容
             config = request.config
             if config is None:
                 config = AgentConfig()
 
-            # Support deprecated fields
+            # 支持已废弃的字段
             if request.workspace_dir and not config.workspace_dir:
                 config.workspace_dir = request.workspace_dir
             if request.max_steps and not config.max_steps:
                 config.max_steps = request.max_steps
 
-            # Create agent with dynamic configuration and session-isolated workspace
+            # 使用动态配置和会话隔离的工作空间创建 Agent
             agent = await agent_factory.create_agent(llm_client, config, session_id=request.session_id)
 
-            # Load history context if session_id provided
+            # 如果提供了 session_id 则加载历史上下文
             if request.session_id and session_manager:
                 session = await session_manager.get_session(
                     session_id=request.session_id,
@@ -293,18 +293,18 @@ async def run_agent_stream(
                 for msg in history_messages:
                     agent.messages.append(Message(role=msg["role"], content=msg["content"]))
 
-                # Send session info
+                # 发送会话信息
                 yield f"data: {json.dumps({'type': 'session', 'data': {'session_id': request.session_id, 'run_id': run_id}}, ensure_ascii=False)}\n\n"
 
-            # Add user message
+            # 添加用户消息
             agent.add_user_message(request.message)
 
-            # Stream agent execution
+            # 流式执行 Agent
             async for event in agent.run_stream():
                 event_type = event.get("type")
                 event_data = event.get("data", {})
 
-                # Track content and steps for session
+                # 跟踪内容和步骤用于会话
                 if event_type == "content":
                     content_buffer += event_data.get("delta", "")
                 elif event_type == "step":
@@ -312,7 +312,7 @@ async def run_agent_stream(
                 elif event_type == "done":
                     content_buffer = event_data.get("message", content_buffer)
 
-                # Format as SSE
+                # 格式化为 SSE
                 sse_data = json.dumps({
                     "type": event_type,
                     "data": event_data,
@@ -320,7 +320,7 @@ async def run_agent_stream(
 
                 yield f"data: {sse_data}\n\n"
 
-            # Save to session if session_id provided
+            # 如果提供了 session_id 则保存到会话
             if request.session_id and session_manager:
                 run_record = AgentRunRecord(
                     run_id=run_id,
@@ -333,7 +333,7 @@ async def run_agent_stream(
                 )
                 await session_manager.add_run(request.session_id, run_record)
 
-            # Save to FileMemory (AGENTS.md)
+            # 保存到 FileMemory (AGENTS.md)
             if request.session_id:
                 memory = FileMemory(
                     user_id=request.user_id or "default",
@@ -345,11 +345,11 @@ async def run_agent_stream(
                 round_num = len(session.runs) if session else 1
                 memory.append_round(round_num, request.message, content_buffer)
 
-            # Send final done event
+            # 发送最终完成事件
             yield "event: done\ndata: {}\n\n"
 
         except Exception as e:
-            # Save error to session if session_id provided
+            # 如果提供了 session_id 则保存错误到会话
             if request.session_id and session_manager:
                 run_record = AgentRunRecord(
                     run_id=run_id,
@@ -362,7 +362,7 @@ async def run_agent_stream(
                 )
                 await session_manager.add_run(request.session_id, run_record)
 
-            # Send error event
+            # 发送错误事件
             error_data = json.dumps({
                 "type": "error",
                 "data": {"message": str(e)},
@@ -375,6 +375,6 @@ async def run_agent_stream(
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",  # Disable nginx buffering
+            "X-Accel-Buffering": "no",  # 禁用 nginx 缓冲
         },
     )

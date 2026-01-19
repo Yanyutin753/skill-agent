@@ -13,7 +13,7 @@ router = APIRouter()
 async def list_tools(
     agent: Annotated[Agent, Depends(get_agent)],
 ) -> dict[str, list[dict[str, str | dict]]]:
-    """List available tools including MCP tools."""
+    """列出所有可用工具，包括基础工具、MCP 工具和 Skill 工具。"""
     return {
         "tools": [
             {

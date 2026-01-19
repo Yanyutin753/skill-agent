@@ -23,7 +23,7 @@ from omni_agent.utils.logger import logger
 router = APIRouter(prefix="/team", tags=["team"])
 
 
-# Predefined role configurations
+# 预定义的角色配置
 ROLE_CONFIGS = {
     "researcher": {
         "role": "Research Specialist",
@@ -48,13 +48,13 @@ ROLE_CONFIGS = {
     "analyst": {
         "role": "Data Analyst",
         "instructions": "你是数据分析专家，擅长分析数据、提取洞察并生成报告。",
-        "tools": []  # Will get all tools
+        "tools": []  # 将获取所有工具
     }
 }
 
 
 class TeamRunRequest(BaseModel):
-    """Team run request"""
+    """团队运行请求模型。"""
     message: str = Field(..., description="任务描述")
     members: List[str] = Field(
         default=["researcher", "writer"],
@@ -73,7 +73,7 @@ class TeamRunRequest(BaseModel):
 
 
 class TeamRunResponse(BaseModel):
-    """Team run response"""
+    """团队运行响应模型。"""
     success: bool
     team_name: str
     message: str
@@ -87,22 +87,22 @@ def _build_team_config(
     request: TeamRunRequest,
     available_tools: List
 ) -> TeamConfig:
-    """Build TeamConfig from request and available tools."""
+    """根据请求和可用工具构建 TeamConfig。"""
 
-    # Get all tool names for filtering
+    # 获取所有工具名称用于过滤
     all_tool_names = [getattr(t, 'name', '') for t in available_tools]
 
-    # Build member configs
+    # 构建成员配置
     members = []
     for role_name in request.members:
         role_config = ROLE_CONFIGS.get(role_name.lower())
 
         if role_config:
-            # Filter tools that exist in available_tools
+            # 过滤出存在于可用工具中的工具
             if role_config["tools"]:
                 member_tools = [t for t in role_config["tools"] if t in all_tool_names]
             else:
-                # Empty list means all tools (for analyst)
+                # 空列表表示所有工具（用于 analyst）
                 member_tools = all_tool_names
 
             members.append(TeamMemberConfig(
@@ -112,12 +112,12 @@ def _build_team_config(
                 tools=member_tools
             ))
         else:
-            # Custom role
+            # 自定义角色
             members.append(TeamMemberConfig(
                 name=role_name.capitalize(),
                 role=role_name,
                 instructions=f"你是{role_name}，请协助完成任务。",
-                tools=all_tool_names  # Give all tools to custom roles
+                tools=all_tool_names  # 给自定义角色分配所有工具
             ))
 
     return TeamConfig(
@@ -136,37 +136,35 @@ async def run_team(
     tools=Depends(get_tools),
     session_manager: Optional[UnifiedTeamSessionManager] = Depends(get_session_manager)
 ) -> TeamRunResponse:
-    """
-    Execute a multi-agent team task.
+    """执行多 Agent 团队任务。
 
-    The Team system uses a Leader agent that intelligently analyzes the task
-    and delegates work to appropriate team members.
+    团队系统使用 Leader Agent 智能分析任务并将工作委派给合适的成员。
 
-    **How it works:**
-    1. Leader receives the task and analyzes what needs to be done
-    2. Leader uses delegation tools to assign work to members
-    3. Members execute their tasks and return results
-    4. Leader synthesizes results and provides final answer
+    **工作流程:**
+    1. Leader 接收任务并分析需要完成的工作
+    2. Leader 使用委派工具将工作分配给成员
+    3. 成员执行任务并返回结果
+    4. Leader 综合结果并提供最终答案
 
-    **Delegation modes:**
-    - `delegate_to_all=false` (default): Leader chooses which member(s) to delegate to
-    - `delegate_to_all=true`: Task is sent to all members for diverse perspectives
+    **委派模式:**
+    - `delegate_to_all=false` (默认): Leader 选择委派给哪个成员
+    - `delegate_to_all=true`: 任务发送给所有成员获取多元视角
 
-    **Available roles:**
-    - `researcher`: Information gathering and research
-    - `writer`: Content creation and documentation
-    - `coder`: Programming and technical tasks
-    - `reviewer`: Quality review and feedback
-    - `analyst`: Data analysis and insights
+    **可用角色:**
+    - `researcher`: 信息收集和研究
+    - `writer`: 内容创作和文档编写
+    - `coder`: 编程和技术任务
+    - `reviewer`: 质量审查和反馈
+    - `analyst`: 数据分析和洞察
 
-    **Session support:**
-    - Provide `session_id` to enable multi-turn conversation with history context
-    - Sessions are persisted and can be resumed across requests
+    **会话支持:**
+    - 提供 `session_id` 启用带历史上下文的多轮对话
+    - 会话会持久化并可跨请求恢复
 
-    **Example:**
+    **示例:**
     ```json
     {
-        "message": "Research Python async programming and write a technical article",
+        "message": "研究 Python 异步编程并撰写技术文章",
         "members": ["researcher", "writer", "reviewer"],
         "delegate_to_all": false,
         "session_id": "user-123"
@@ -177,19 +175,19 @@ async def run_team(
         if not request.members:
             raise HTTPException(status_code=400, detail="At least one member is required")
 
-        # Build team configuration
+        # 构建团队配置
         team_config = _build_team_config(request, tools)
 
-        # Create team with global session manager
+        # 使用全局会话管理器创建团队
         team = Team(
             config=team_config,
             llm_client=llm_client,
             available_tools=tools,
             workspace_dir=request.workspace_dir or "./workspace",
-            session_manager=session_manager  # Use injected global session manager
+            session_manager=session_manager  # 使用注入的全局会话管理器
         )
 
-        # Execute task
+        # 执行任务
         logger.info(f"Running team '{team_config.name}' with members={request.members}, session_id={request.session_id}")
         result: TeamRunResponseSchema = await team.run(
             message=request.message,
@@ -197,7 +195,7 @@ async def run_team(
             session_id=request.session_id
         )
 
-        # Convert to response
+        # 转换为响应
         return TeamRunResponse(
             success=result.success,
             team_name=result.team_name,
@@ -217,10 +215,9 @@ async def run_team(
 
 @router.get("/roles")
 async def list_roles() -> Dict[str, Any]:
-    """
-    List available team member roles.
+    """列出可用的团队成员角色。
 
-    Returns information about each predefined role and their capabilities.
+    返回每个预定义角色的信息及其能力。
     """
     return {
         "roles": [
@@ -238,7 +235,7 @@ async def list_roles() -> Dict[str, Any]:
 
 @router.get("/health")
 async def team_health() -> Dict[str, str]:
-    """Health check for team endpoints"""
+    """团队端点的健康检查。"""
     return {"status": "healthy", "service": "team"}
 
 
@@ -249,26 +246,24 @@ async def run_team_with_dependencies(
     tools=Depends(get_tools),
     session_manager: Optional[UnifiedTeamSessionManager] = Depends(get_session_manager)
 ) -> DependencyRunResponse:
-    """
-    Execute team tasks with explicit dependency relationships.
+    """执行带明确依赖关系的团队任务。
 
-    This endpoint allows you to define a DAG (Directed Acyclic Graph) of tasks
-    where each task can depend on the completion of other tasks.
+    此端点允许定义任务的 DAG (有向无环图)，每个任务可以依赖其他任务的完成。
 
-    **How it works:**
-    1. Tasks are automatically sorted based on their dependencies (topological sort)
-    2. Tasks without dependencies execute first
-    3. Tasks in the same dependency layer execute in parallel
-    4. Each task receives results from its dependency tasks as context
-    5. If any task fails, dependent tasks are skipped
+    **工作流程:**
+    1. 任务根据依赖关系自动排序 (拓扑排序)
+    2. 无依赖的任务先执行
+    3. 同一依赖层的任务并行执行
+    4. 每个任务会收到其依赖任务的结果作为上下文
+    5. 如果任何任务失败，依赖它的任务将被跳过
 
-    **Benefits:**
-    - Explicit control over task execution order
-    - Automatic parallelization of independent tasks
-    - Results from dependency tasks are passed as context
-    - Clear visualization of execution flow
+    **优势:**
+    - 明确控制任务执行顺序
+    - 自动并行化独立任务
+    - 依赖任务的结果作为上下文传递
+    - 清晰的执行流程可视化
 
-    **Request format:**
+    **请求格式:**
     ```json
     {
         "tasks": [
@@ -310,16 +305,16 @@ async def run_team_with_dependencies(
     }
     ```
 
-    **Execution order:**
-    - Layer 1: research (no dependencies)
-    - Layer 2: analyze (depends on research)
-    - Layer 3: write + code (parallel, both depend on analyze)
+    **执行顺序:**
+    - 层 1: research (无依赖)
+    - 层 2: analyze (依赖 research)
+    - 层 3: write + code (并行，都依赖 analyze)
 
-    **Use cases:**
-    - Complex multi-step workflows
-    - Research -> Analysis -> Report generation
-    - Data collection -> Processing -> Visualization
-    - Requirements -> Design -> Implementation -> Testing
+    **使用场景:**
+    - 复杂的多步骤工作流
+    - 研究 -> 分析 -> 报告生成
+    - 数据收集 -> 处理 -> 可视化
+    - 需求 -> 设计 -> 实现 -> 测试
     """
     try:
         if not request.tasks:

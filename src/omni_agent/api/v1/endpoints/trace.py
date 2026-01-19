@@ -15,6 +15,8 @@ TRACE_DIR = Path.home() / ".omni-agent" / "traces"
 
 
 class TraceListItem(BaseModel):
+    """追踪列表项模型。"""
+
     filename: str
     trace_id: str
     trace_type: str
@@ -27,6 +29,8 @@ class TraceListItem(BaseModel):
 
 
 class RunListItem(BaseModel):
+    """运行记录列表项模型。"""
+
     run_id: str
     timestamp: str
     total_steps: int
@@ -37,11 +41,15 @@ class RunListItem(BaseModel):
 
 
 class TraceDetail(BaseModel):
+    """追踪详情模型。"""
+
     summary: dict
     events: list[dict]
 
 
 class RunDetail(BaseModel):
+    """运行详情模型。"""
+
     run_id: str
     summary: dict
     events: list[dict]
@@ -51,6 +59,7 @@ class RunDetail(BaseModel):
 async def list_runs(
     limit: int = Query(default=50, ge=1, le=200),
 ) -> list[RunListItem]:
+    """列出所有运行记录。"""
     storage = await get_run_log_storage()
     runs = await storage.list_runs(limit)
     return [RunListItem(**r) for r in runs]
@@ -58,6 +67,7 @@ async def list_runs(
 
 @router.get("/runs/detail/{run_id}")
 async def get_run_detail(run_id: str) -> RunDetail:
+    """获取指定运行记录的详情。"""
     storage = await get_run_log_storage()
     events = await storage.get_events(run_id)
     if not events:
@@ -69,6 +79,7 @@ async def get_run_detail(run_id: str) -> RunDetail:
 
 @router.delete("/runs/{run_id}")
 async def delete_run(run_id: str) -> dict:
+    """删除指定的运行记录。"""
     storage = await get_run_log_storage()
     deleted = await storage.delete_run(run_id)
     if not deleted:
@@ -81,6 +92,7 @@ async def list_traces(
     limit: int = Query(default=20, ge=1, le=100),
     trace_type: Optional[str] = Query(default=None),
 ) -> list[TraceListItem]:
+    """列出所有追踪记录，支持按类型过滤。"""
     if not TRACE_DIR.exists():
         return []
 
@@ -126,6 +138,7 @@ async def list_traces(
 
 @router.get("/detail/{trace_id}")
 async def get_trace_detail(trace_id: str) -> TraceDetail:
+    """获取指定追踪的详细信息。"""
     if not TRACE_DIR.exists():
         raise HTTPException(status_code=404, detail="Trace directory not found")
 
@@ -154,6 +167,7 @@ async def get_trace_detail(trace_id: str) -> TraceDetail:
 
 @router.get("/by-filename/{filename}")
 async def get_trace_by_filename(filename: str) -> TraceDetail:
+    """根据文件名获取追踪详情。"""
     if not TRACE_DIR.exists():
         raise HTTPException(status_code=404, detail="Trace directory not found")
 
@@ -178,6 +192,7 @@ async def get_trace_by_filename(filename: str) -> TraceDetail:
 
 @router.get("/config")
 async def get_log_config() -> dict:
+    """获取当前日志配置信息。"""
     return {
         "backend": settings.RUN_LOG_BACKEND,
         "log_dir": settings.RUN_LOG_DIR if settings.RUN_LOG_BACKEND == "file" else None,

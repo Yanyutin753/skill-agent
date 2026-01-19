@@ -10,7 +10,7 @@ router = APIRouter()
 
 
 class DocumentResponse(BaseModel):
-    """Document response model."""
+    """文档响应模型。"""
 
     id: str
     filename: str
@@ -20,14 +20,14 @@ class DocumentResponse(BaseModel):
 
 
 class DocumentListResponse(BaseModel):
-    """Document list response model."""
+    """文档列表响应模型。"""
 
     documents: list[dict[str, Any]]
     total: int
 
 
 class SearchRequest(BaseModel):
-    """Search request model."""
+    """搜索请求模型。"""
 
     query: str
     top_k: int = 5
@@ -37,7 +37,7 @@ class SearchRequest(BaseModel):
 
 
 class SearchResult(BaseModel):
-    """Search result model."""
+    """搜索结果模型。"""
 
     id: str
     content: str
@@ -46,7 +46,7 @@ class SearchResult(BaseModel):
 
 
 class SearchResponse(BaseModel):
-    """Search response model."""
+    """搜索响应模型。"""
 
     results: list[SearchResult]
     total: int
@@ -54,14 +54,14 @@ class SearchResponse(BaseModel):
 
 @router.post("/upload", response_model=DocumentResponse)
 async def upload_document(file: UploadFile = File(...)) -> DocumentResponse:
-    """Upload a document to the knowledge base.
+    """上传文档到知识库。
 
-    Supported formats: TXT, Markdown, PDF
+    支持格式: TXT, Markdown, PDF
     """
     if not file.filename:
         raise HTTPException(status_code=400, detail="Filename is required")
 
-    # Check file type
+    # 检查文件类型
     if not rag_service.processor.is_supported(file.filename):
         supported = list(rag_service.processor.SUPPORTED_TYPES.keys())
         raise HTTPException(
@@ -70,14 +70,14 @@ async def upload_document(file: UploadFile = File(...)) -> DocumentResponse:
         )
 
     try:
-        # Get file size
+        # 获取文件大小
         content = await file.read()
         file_size = len(content)
 
-        # Reset file position for processing
+        # 重置文件位置以便处理
         await file.seek(0)
 
-        # Add document to knowledge base
+        # 将文档添加到知识库
         result = await rag_service.add_document(
             file=file.file,
             filename=file.filename,
@@ -97,14 +97,14 @@ async def upload_document(file: UploadFile = File(...)) -> DocumentResponse:
 
 @router.get("/documents", response_model=DocumentListResponse)
 async def list_documents() -> DocumentListResponse:
-    """List all documents in the knowledge base."""
+    """列出知识库中的所有文档。"""
     documents = await rag_service.list_documents()
     return DocumentListResponse(documents=documents, total=len(documents))
 
 
 @router.get("/documents/{document_id}")
 async def get_document(document_id: str) -> dict[str, Any]:
-    """Get document details by ID."""
+    """根据 ID 获取文档详情。"""
     document = await rag_service.get_document(document_id)
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -113,7 +113,7 @@ async def get_document(document_id: str) -> dict[str, Any]:
 
 @router.delete("/documents/{document_id}")
 async def delete_document(document_id: str) -> dict[str, str]:
-    """Delete a document from the knowledge base."""
+    """从知识库中删除文档。"""
     success = await rag_service.delete_document(document_id)
     if not success:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -122,12 +122,12 @@ async def delete_document(document_id: str) -> dict[str, str]:
 
 @router.post("/search", response_model=SearchResponse)
 async def search_knowledge(request: SearchRequest) -> SearchResponse:
-    """Search the knowledge base for relevant content.
+    """在知识库中搜索相关内容。
 
-    Modes:
-    - hybrid (default): Combines semantic and keyword search using RRF
-    - semantic: Pure vector similarity search
-    - keyword: Pure full-text search (BM25-like)
+    搜索模式:
+    - hybrid (默认): 使用 RRF 融合语义搜索和关键词搜索
+    - semantic: 纯向量相似度搜索
+    - keyword: 纯全文搜索 (BM25 风格)
     """
     try:
         results = await rag_service.search(
