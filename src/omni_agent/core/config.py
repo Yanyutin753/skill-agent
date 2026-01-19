@@ -1,4 +1,30 @@
-"""使用 pydantic-settings 的应用程序配置。"""
+"""应用程序配置模块.
+
+使用 pydantic-settings 从环境变量和 .env 文件加载配置。
+
+配置分类:
+    - 基础配置: 项目名称、版本、调试模式
+    - API 配置: 前缀、CORS 来源
+    - LLM 配置: 支持 100+ 提供商（通过 LiteLLM），模型名称格式 provider/model
+    - Agent 配置: 最大步数、工作目录
+    - Skills 配置: 技能系统开关和目录
+    - MCP 配置: Model Context Protocol 工具集成
+    - RAG 配置: PostgreSQL + pgvector 知识库
+    - Session 配置: 会话管理（支持 file/redis/postgres 后端）
+    - Langfuse 配置: 可观测性追踪
+    - Sandbox 配置: 沙箱隔离执行
+    - ACP 配置: Agent Client Protocol（代码编辑器集成）
+
+使用示例:
+    from omni_agent.core.config import settings
+
+    # 访问配置
+    model = settings.LLM_MODEL
+    api_key = settings.LLM_API_KEY
+
+    # 构建数据库连接
+    dsn = settings.postgres_dsn
+"""
 from pathlib import Path
 from typing import Any
 
@@ -7,7 +33,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables."""
+    """应用程序配置类，从环境变量加载.
+
+    支持从 .env 文件和环境变量加载配置，环境变量优先。
+    配置项不区分大小写，未知配置项会被忽略。
+
+    模型名称标准化:
+        - 标准格式: anthropic/claude-3-5-sonnet-20241022
+        - 旧冒号格式: openai:gpt-4o -> openai/gpt-4o
+        - 无前缀格式: claude-3-5-sonnet -> 自动检测提供商
+    """
 
     model_config = SettingsConfigDict(
         env_file=".env",

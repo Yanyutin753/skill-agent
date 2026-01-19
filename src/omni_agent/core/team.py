@@ -1,4 +1,52 @@
-"""团队编排，用于多 Agent 协作。"""
+"""团队编排，用于多 Agent 协作.
+
+本模块实现了 Leader-Member 模式的多 Agent 协作系统，受 agno 框架启发。
+
+架构概述:
+    Team 采用 Leader-Member 分层架构：
+    1. Leader Agent: 接收用户任务，分析并委派给合适的成员
+    2. Member Agents: 执行具体任务，返回结果给 Leader
+    3. Leader 汇总成员结果，生成最终响应
+
+执行模式:
+    1. 标准模式 (run):
+       - Leader 通过 delegate_task_to_member 工具委派任务
+       - 支持单次委派或广播给所有成员
+       - 成员可嵌套使用 SpawnAgent 创建子 Agent
+
+    2. 依赖模式 (run_with_dependencies):
+       - 支持 DAG 任务依赖图
+       - 拓扑排序确定执行顺序
+       - 同层任务并行执行
+       - 依赖任务结果自动注入上下文
+
+会话管理:
+    - 支持 session_id 实现对话连续性
+    - 历史记录通过 UnifiedTeamSessionManager 持久化
+    - RunRecord 记录每次执行（Leader 和 Member 分开记录）
+
+追踪机制:
+    - TraceLogger 记录完整执行链
+    - 支持 Leader → Member 委派追踪
+    - 依赖模式记录任务层级和执行顺序
+
+使用示例:
+    # 创建团队配置
+    config = TeamConfig(
+        name="research_team",
+        description="研究与写作团队",
+        members=[
+            TeamMemberConfig(id="researcher", name="研究员", role="researcher", tools=["web_search"]),
+            TeamMemberConfig(id="writer", name="写作者", role="writer", tools=["write_file"]),
+        ]
+    )
+
+    # 初始化团队
+    team = Team(config=config, llm_client=llm_client)
+
+    # 执行任务
+    response = await team.run("研究 Python asyncio 并写一篇文章")
+"""
 import asyncio
 import time
 from typing import Any, Dict, List, Optional
@@ -24,7 +72,21 @@ from omni_agent.tools.spawn_agent_tool import SpawnAgentTool
 
 
 class Team:
-    """Team of agents that can collaborate on tasks."""
+    """多 Agent 协作团队.
+
+    实现 Leader-Member 模式，Leader 负责任务分析和委派，
+    Member 执行具体任务。支持标准执行和依赖执行两种模式。
+
+    Attributes:
+        config: 团队配置（名称、描述、成员列表）
+        llm_client: LLM 客户端实例
+        available_tools: 可用工具列表（成员按配置筛选使用）
+        workspace_dir: 工作目录
+        team_id: 团队唯一标识
+        session_manager: 会话管理器
+        member_runs: 当前执行中的成员运行记录
+        iteration_count: 迭代计数
+    """
 
     def __init__(
         self,
@@ -59,13 +121,21 @@ class Team:
         self._current_run_id: Optional[str] = None  # Track current leader run ID
 
     def _build_leader_system_prompt(self, history_context: str = "") -> str:
-        """Build system prompt for team leader using structured format (inspired by agno).
+        """构建 Leader Agent 的系统提示词.
+
+        使用结构化 XML 格式（受 agno 框架启发），包含：
+        - team_name: 团队名称
+        - team_description: 团队描述
+        - team_members: 成员信息（ID、名称、角色、工具、指令）
+        - how_to_respond: 委派策略说明
+        - instructions: 自定义 Leader 指令（可选）
+        - previous_interactions: 历史对话上下文（可选）
 
         Args:
-            history_context: Optional formatted history from previous runs
+            history_context: 格式化的历史对话上下文
 
         Returns:
-            Complete system prompt for the leader agent
+            完整的 Leader 系统提示词
         """
         # Build team members section
         members_desc = []
@@ -159,7 +229,20 @@ Use the previous interactions to maintain continuity and context.
         session_id: Optional[str] = None,
         depth: int = 1
     ) -> MemberRunResult:
-        """Run a specific team member on a task."""
+        """执行特定团队成员的任务.
+
+        为成员创建独立的 Agent 实例，配置其角色、工具和指令，
+        执行任务并返回结果。支持 SpawnAgent 嵌套。
+
+        Args:
+            member_config: 成员配置（角色、工具、指令等）
+            task: 委派的任务描述
+            session_id: 会话 ID（用于持久化运行记录）
+            depth: 嵌套深度（用于 TraceLogger）
+
+        Returns:
+            MemberRunResult 包含执行结果、状态、token 使用等
+        """
         trace = get_current_trace()
         if trace:
             trace.log_agent_start(
@@ -305,38 +388,26 @@ Focus on your area of expertise and provide clear, actionable responses.
         num_history_runs: int = 3,
         run_context: Optional[RunContext] = None,
     ) -> TeamRunResponse:
-        """Run the team on a task.
+        """执行团队任务（标准模式）.
+
+        Leader Agent 分析任务并通过委派工具分配给合适的成员执行。
+        支持会话持久化和历史上下文注入。
 
         Args:
-            message: Task message for the team
-            max_steps: Maximum steps for leader agent (default: 50)
-            session_id: Session ID for conversation continuity (optional)
-            user_id: User ID for tracking (optional)
-            num_history_runs: Number of history runs to include in context (default: 3)
-            run_context: Internal parameter for framework use only. Users should use
-                session_id/user_id parameters instead. This is mainly used for internal
-                context passing between Team and member Agents.
+            message: 用户任务消息
+            max_steps: Leader Agent 最大执行步数（默认 50）
+            session_id: 会话 ID，用于对话连续性
+            user_id: 用户 ID，用于追踪
+            num_history_runs: 注入上下文的历史运行记录数（默认 3）
+            run_context: 内部参数，框架自动创建，用户无需手动传入
 
         Returns:
-            TeamRunResponse with execution results
-
-        Example:
-            >>> # ✅ Recommended: Use independent parameters
-            >>> response = await team.run(
-            ...     message="Research Python asyncio and create documentation",
-            ...     session_id="user-session-123",
-            ...     user_id="user-456",
-            ...     max_steps=50
-            ... )
-
-            >>> # ❌ Not recommended: Manually creating RunContext
-            >>> # Users should not manually create RunContext
-            >>> # The framework handles this automatically
+            TeamRunResponse 包含执行结果、成员运行记录、token 统计等
 
         Note:
-            - RunContext is created automatically from session_id/user_id if not provided
-            - run_context parameter is mainly for internal framework use
-            - See docs/RUNCONTEXT_DESIGN.md for design rationale
+            - 委派模式由 config.delegate_to_all 控制
+            - True: 使用 delegate_task_to_all_members 广播
+            - False: 使用 delegate_task_to_member 定向委派
         """
         self.member_runs = []
         self.iteration_count = 0
@@ -553,16 +624,19 @@ Focus on your area of expertise and provide clear, actionable responses.
     def _resolve_dependencies(
         self, tasks: List[TaskWithDependencies]
     ) -> List[List[TaskWithDependencies]]:
-        """Resolve task dependencies using topological sort.
+        """使用拓扑排序解析任务依赖关系.
+
+        将 DAG 任务图分解为可并行执行的层级结构。
+        同一层的任务没有相互依赖，可以并行执行。
 
         Args:
-            tasks: List of tasks with dependencies
+            tasks: 带依赖关系的任务列表
 
         Returns:
-            List of task layers (each layer can be executed in parallel)
+            任务层级列表，每层可并行执行
 
         Raises:
-            ValueError: If circular dependencies detected
+            ValueError: 检测到循环依赖或依赖不存在的任务时抛出
         """
         task_map = {task.id: task for task in tasks}
         in_degree = {task.id: len(task.depends_on) for task in tasks}
@@ -602,7 +676,17 @@ Focus on your area of expertise and provide clear, actionable responses.
         session_id: Optional[str] = None,
         layer: int = 0,
     ) -> TaskWithDependencies:
-        """Execute a single task with context from completed dependencies."""
+        """执行单个任务，注入依赖任务的结果作为上下文.
+
+        Args:
+            task: 待执行的任务
+            completed_results: 已完成任务的结果映射 {task_id: result}
+            session_id: 会话 ID
+            layer: 当前执行层级（用于追踪）
+
+        Returns:
+            更新状态后的任务对象
+        """
         task.status = "running"
         start_time = time.time()
 
@@ -668,7 +752,19 @@ Focus on your area of expertise and provide clear, actionable responses.
         session_id: Optional[str] = None,
         user_id: Optional[str] = None,
     ) -> DependencyRunResponse:
-        """Execute tasks with dependency relationships."""
+        """执行带依赖关系的任务集（依赖模式）.
+
+        使用拓扑排序确定执行顺序，同层任务并行执行。
+        任务失败时跳过所有依赖它的后续任务。
+
+        Args:
+            tasks: 带依赖关系的任务列表
+            session_id: 会话 ID
+            user_id: 用户 ID
+
+        Returns:
+            DependencyRunResponse 包含执行顺序、任务状态、总步数等
+        """
         self._current_run_id = str(uuid4())
 
         trace = TraceLogger()
@@ -795,7 +891,15 @@ Focus on your area of expertise and provide clear, actionable responses.
         success: bool,
         total_steps: int,
     ) -> None:
-        """Save dependency run results to session."""
+        """保存依赖执行结果到会话.
+
+        Args:
+            session_id: 会话 ID
+            tasks: 任务列表（包含执行状态和结果）
+            final_message: 最终汇总消息
+            success: 是否全部成功
+            total_steps: 总执行步数
+        """
         run_record = RunRecord(
             run_id=self._current_run_id or str(uuid4()),
             parent_run_id=None,

@@ -1,10 +1,12 @@
-"""Agent 执行的运行上下文。
+"""Agent 执行的运行上下文.
 
-IMPORTANT: This module is for internal framework use. Users should not manually
-create RunContext instances. Instead, use the session_id and user_id parameters
-when calling team.run() or agent.run().
+重要: 此模块仅供框架内部使用。用户不应手动创建 RunContext 实例。
+请使用 team.run() 或 agent.run() 的 session_id 和 user_id 参数。
 
-See docs/RUNCONTEXT_DESIGN.md for design rationale.
+设计理念参见 docs/RUNCONTEXT_DESIGN.md
+
+RunContext 用于在框架各层级之间传递上下文信息（如 Team 到 Member Agent），
+避免使用全局变量或线程本地存储，参考 agno 的 RunContext 设计。
 """
 from dataclasses import dataclass
 from typing import Any, Dict, Optional

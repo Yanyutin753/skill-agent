@@ -1,4 +1,28 @@
-"""FastAPI 端点的依赖注入。"""
+"""FastAPI 端点的依赖注入模块.
+
+提供 FastAPI 端点所需的依赖项，包括：
+- LLM 客户端
+- Agent 工厂
+- 工具集合（基础工具 + MCP 工具 + Skills）
+- 会话管理器（支持 file/redis/postgres 后端）
+- 沙箱管理器
+
+生命周期管理:
+    - initialize_mcp_tools(): 应用启动时加载 MCP 工具
+    - cleanup_mcp_tools(): 应用关闭时清理 MCP 连接
+    - initialize_session_manager(): 应用启动时初始化会话管理器
+    - initialize_sandbox_manager(): 应用启动时初始化沙箱管理器
+    - cleanup_sandbox_manager(): 应用关闭时清理沙箱
+
+使用示例:
+    @router.post("/run")
+    async def run(
+        llm_client: LLMClient = Depends(get_llm_client),
+        agent_factory: AgentFactory = Depends(get_agent_factory),
+    ):
+        agent = await agent_factory.create_agent(llm_client, config)
+        ...
+"""
 from pathlib import Path
 from typing import Annotated, Optional, TYPE_CHECKING
 
@@ -31,35 +55,33 @@ from omni_agent.tools.mcp_loader import cleanup_mcp_connections, load_mcp_tools_
 from omni_agent.tools.note_tool import RecallNoteTool, SessionNoteTool
 from omni_agent.tools.rag_tool import RAGTool
 
-# Global MCP tools storage (loaded at startup)
+# ============================================================================
+# 全局状态存储
+# ============================================================================
+
+# MCP 工具存储（应用启动时加载）
 _mcp_tools: list[Tool] = []
 
-# Global session managers (loaded at startup)
-# 支持多种存储后端 (file, redis, postgres)
+# 会话管理器（应用启动时初始化）
+# 支持多种存储后端: file（文件）, redis, postgres
 _agent_session_manager: Optional[UnifiedAgentSessionManager] = None
 _team_session_manager: Optional[UnifiedTeamSessionManager] = None
 
-# Global sandbox manager (loaded at startup when ENABLE_SANDBOX=true)
+# 沙箱管理器（ENABLE_SANDBOX=true 时初始化）
+# 每个 session 对应一个隔离的沙箱实例
 _sandbox_manager: Optional["SandboxManager"] = None
 
 
 def get_settings() -> Settings:
-    """Get application settings.
-
-    Returns:
-        Application settings instance
-    """
+    """获取应用配置实例."""
     return settings
 
 
 def get_llm_client(settings: Annotated[Settings, Depends(get_settings)]) -> LLMClient:
-    """Get LLM client instance.
+    """获取 LLM 客户端实例.
 
-    Args:
-        settings: Application settings
-
-    Returns:
-        Configured LLM client
+    使用配置中的 API Key、API Base 和模型名称创建 LLM 客户端。
+    支持 100+ 种 LLM 提供商（通过 LiteLLM）。
     """
     return LLMClient(
         api_key=settings.LLM_API_KEY,
@@ -69,11 +91,12 @@ def get_llm_client(settings: Annotated[Settings, Depends(get_settings)]) -> LLMC
 
 
 async def initialize_mcp_tools() -> None:
-    """Initialize MCP tools at application startup.
+    """应用启动时初始化 MCP 工具.
 
-    This function is called during FastAPI lifespan startup to load
-    MCP tools from the configuration file. Tools are stored in the
-    global _mcp_tools list for use during request handling.
+    在 FastAPI lifespan 启动阶段调用，从配置文件加载 MCP 工具。
+    工具存储在全局 _mcp_tools 列表中，供请求处理时使用。
+
+    调试日志写入 /tmp/mcp_init_debug.log，出错时写入 /tmp/mcp_init_error.log。
     """
     global _mcp_tools
 
@@ -126,10 +149,9 @@ async def initialize_mcp_tools() -> None:
 
 
 async def cleanup_mcp_tools() -> None:
-    """Cleanup MCP connections at application shutdown.
+    """应用关闭时清理 MCP 连接.
 
-    This function is called during FastAPI lifespan shutdown to properly
-    close all MCP server connections and cleanup resources.
+    在 FastAPI lifespan 关闭阶段调用，正确关闭所有 MCP 服务器连接并释放资源。
     """
     global _mcp_tools
 
@@ -142,15 +164,16 @@ async def cleanup_mcp_tools() -> None:
 
 
 async def initialize_session_manager() -> None:
-    """Initialize session managers at application startup.
+    """应用启动时初始化会话管理器.
 
-    This function is called during FastAPI lifespan startup to load
-    both agent and team session managers with configured storage backend.
+    在 FastAPI lifespan 启动阶段调用，初始化 Agent 和 Team 会话管理器。
 
-    Supports multiple backends:
-    - file: JSON file storage (default)
-    - redis: Redis storage (high performance)
-    - postgres: PostgreSQL storage (persistent, queryable)
+    支持的存储后端:
+    - file: JSON 文件存储（默认，适合开发环境）
+    - redis: Redis 存储（高性能，适合生产环境）
+    - postgres: PostgreSQL 存储（持久化，可查询）
+
+    启动时会自动清理过期会话（根据 SESSION_MAX_AGE_DAYS 配置）。
     """
     global _agent_session_manager, _team_session_manager
 
@@ -263,29 +286,22 @@ async def initialize_session_manager() -> None:
 
 
 def get_agent_session_manager() -> Optional[UnifiedAgentSessionManager]:
-    """Get global agent session manager instance.
-
-    Returns:
-        UnifiedAgentSessionManager instance or None if disabled
-    """
+    """获取全局 Agent 会话管理器实例."""
     return _agent_session_manager
 
 
 def get_session_manager() -> Optional[UnifiedTeamSessionManager]:
-    """Get global team session manager instance.
-
-    Returns:
-        UnifiedTeamSessionManager instance or None if disabled
-    """
+    """获取全局 Team 会话管理器实例."""
     return _team_session_manager
 
 
 async def initialize_sandbox_manager() -> None:
-    """Initialize sandbox manager at application startup.
+    """应用启动时初始化沙箱管理器.
 
-    This function is called during FastAPI lifespan startup when
-    ENABLE_SANDBOX is true. Creates a SandboxManager instance that
-    manages one sandbox per session.
+    在 FastAPI lifespan 启动阶段调用（当 ENABLE_SANDBOX=true 时）。
+    创建 SandboxManager 实例，每个 session 对应一个隔离的沙箱。
+
+    沙箱提供安全的代码执行环境，支持 Docker 容器隔离。
     """
     global _sandbox_manager
 
@@ -315,7 +331,7 @@ async def initialize_sandbox_manager() -> None:
 
 
 async def cleanup_sandbox_manager() -> None:
-    """Cleanup sandbox manager at application shutdown."""
+    """应用关闭时清理沙箱管理器."""
     global _sandbox_manager
 
     if _sandbox_manager is None:
@@ -327,29 +343,29 @@ async def cleanup_sandbox_manager() -> None:
 
 
 def get_sandbox_manager() -> Optional["SandboxManager"]:
-    """Get global sandbox manager instance.
-
-    Returns:
-        SandboxManager instance or None if disabled
-    """
+    """获取全局沙箱管理器实例."""
     return _sandbox_manager
 
 
 def get_tools(workspace_dir: str | None = None) -> list[Tool]:
-    """Get all available tools including base tools, MCP tools, and skill tools.
+    """获取所有可用工具，包括基础工具、MCP 工具和 Skill 工具.
+
+    工具加载优先级:
+    1. 基础工具: read_file, write_file, edit_file, list_dir, glob, grep, bash, note tools
+    2. Skill 工具: get_skill（ENABLE_SKILLS=true 时）
+    3. MCP 工具: 从 mcp.json 加载（ENABLE_MCP=true 时）
+    4. RAG 工具: search_knowledge（ENABLE_RAG=true 时）
 
     Args:
-        workspace_dir: Optional workspace directory path. If not provided,
-                      uses settings.AGENT_WORKSPACE_DIR
+        workspace_dir: 工作空间目录路径，默认使用 settings.AGENT_WORKSPACE_DIR
 
     Returns:
-        List of all available tools
+        所有可用工具的列表
     """
-    # Determine workspace directory
     workspace_path = Path(workspace_dir or settings.AGENT_WORKSPACE_DIR)
     workspace_path.mkdir(parents=True, exist_ok=True)
 
-    # Initialize base tools (deepagents-style filesystem tools)
+    # 基础工具（deepagents 风格的文件系统工具）
     tools = [
         ReadTool(workspace_dir=str(workspace_path)),
         WriteTool(workspace_dir=str(workspace_path)),
@@ -363,17 +379,17 @@ def get_tools(workspace_dir: str | None = None) -> list[Tool]:
         GetUserInputTool(),
     ]
 
-    # Load skills if enabled
+    # Skill 工具
     if settings.ENABLE_SKILLS:
         skill_tools, skill_loader = create_skill_tools(settings.SKILLS_DIR)
         if skill_tools:
             tools.extend(skill_tools)
 
-    # Add MCP tools if enabled (loaded at startup)
+    # MCP 工具（应用启动时已加载到全局变量）
     if settings.ENABLE_MCP and _mcp_tools:
         tools.extend(_mcp_tools)
 
-    # Add RAG tool if enabled
+    # RAG 工具
     if settings.ENABLE_RAG:
         tools.append(RAGTool())
 
@@ -384,17 +400,10 @@ def get_agent(
     llm_client: Annotated[LLMClient, Depends(get_llm_client)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> Agent:
-    """Get agent instance with configured tools.
+    """获取配置好工具的 Agent 实例.
 
-    DEPRECATED: This method is kept for backward compatibility.
-    Consider using AgentFactory.create_agent() for dynamic configuration.
-
-    Args:
-        llm_client: LLM client instance
-        settings: Application settings
-
-    Returns:
-        Configured agent instance
+    [已废弃] 此方法保留用于向后兼容。
+    建议使用 AgentFactory.create_agent() 获取动态配置的 Agent。
     """
     # Determine workspace directory
     workspace_path = Path(settings.AGENT_WORKSPACE_DIR)
@@ -427,14 +436,16 @@ def get_agent(
 
 
 class AgentFactory:
-    """Factory for creating agents with dynamic configuration."""
+    """Agent 工厂，用于创建动态配置的 Agent.
+
+    相比 get_agent()，AgentFactory 提供更灵活的配置能力：
+    - 动态工具选择（base_tools_filter, mcp_tools_filter）
+    - 会话隔离的工作空间
+    - 沙箱集成（可选）
+    - SpawnAgent 嵌套控制
+    """
 
     def __init__(self, settings: Settings):
-        """Initialize factory with settings.
-
-        Args:
-            settings: Application settings
-        """
         self.settings = settings
 
     async def create_agent(
@@ -443,15 +454,15 @@ class AgentFactory:
         config: Optional["AgentConfig"] = None,
         session_id: Optional[str] = None,
     ) -> Agent:
-        """Create agent with dynamic configuration.
+        """创建动态配置的 Agent.
 
         Args:
-            llm_client: LLM client instance
-            config: Dynamic agent configuration (optional)
-            session_id: Session ID for workspace isolation (optional)
+            llm_client: LLM 客户端实例
+            config: Agent 配置（可选），控制工具、token 限制等
+            session_id: 会话 ID，用于工作空间隔离和沙箱关联
 
         Returns:
-            Configured agent instance
+            配置完成的 Agent 实例
         """
         from omni_agent.schemas.message import AgentConfig
         from omni_agent.core.workspace import get_workspace_manager
@@ -509,15 +520,19 @@ class AgentFactory:
         workspace_dir: str,
         session_id: Optional[str] = None,
     ) -> list[Tool]:
-        """Build tool list based on configuration.
+        """根据配置构建工具列表.
 
-        Args:
-            config: Agent configuration
-            workspace_dir: Workspace directory path
-            session_id: Session ID for sandbox isolation
+        支持的配置选项:
+        - enable_base_tools: 是否启用基础工具
+        - base_tools_filter: 指定启用哪些基础工具
+        - enable_mcp_tools: 是否启用 MCP 工具
+        - mcp_tools_filter: 指定启用哪些 MCP 工具
+        - enable_skills: 是否启用 Skill 工具
+        - enable_rag: 是否启用 RAG 工具
 
-        Returns:
-            List of configured tools
+        沙箱模式:
+        当 ENABLE_SANDBOX=true 且提供 session_id 时，
+        基础工具会替换为沙箱版本（在 Docker 容器中执行）。
         """
         from omni_agent.schemas.message import AgentConfig
 
@@ -622,17 +637,20 @@ class AgentFactory:
         llm_client: LLMClient,
         current_depth: int = 0,
     ) -> list[Tool]:
-        """Add SpawnAgentTool to tool list if enabled.
+        """添加 SpawnAgentTool 到工具列表（如果启用）.
+
+        SpawnAgent 允许父 Agent 动态创建子 Agent 执行委托任务。
+        通过 max_depth 控制嵌套深度，防止无限递归。
 
         Args:
-            tools: Current tool list
-            config: Agent configuration
-            workspace_dir: Workspace directory path
-            llm_client: LLM client instance
-            current_depth: Current nesting depth (0 for root agent)
+            tools: 当前工具列表
+            config: Agent 配置
+            workspace_dir: 工作空间目录
+            llm_client: LLM 客户端
+            current_depth: 当前嵌套深度（根 Agent 为 0）
 
         Returns:
-            Updated tool list with SpawnAgentTool if enabled
+            包含 SpawnAgentTool 的工具列表（如果未达到 max_depth）
         """
         enable_spawn = config.enable_spawn_agent if config.enable_spawn_agent is not None else self.settings.ENABLE_SPAWN_AGENT
         if not enable_spawn:
@@ -664,14 +682,7 @@ class AgentFactory:
 def get_agent_factory(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AgentFactory:
-    """Get agent factory instance.
-
-    Args:
-        settings: Application settings
-
-    Returns:
-        AgentFactory instance
-    """
+    """获取 Agent 工厂实例."""
     return AgentFactory(settings)
 
 
@@ -679,18 +690,11 @@ def get_builtin_research_team(
     llm_client: Annotated[LLMClient, Depends(get_llm_client)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> "Team":
-    """Get builtin web research team instance.
+    """获取内置的 Web 研究团队实例.
 
-    Creates a team with two specialized agents:
-    - Web Search Agent (uses exa MCP tools)
-    - Web Spider Agent (uses firecrawl MCP tools)
-
-    Args:
-        llm_client: LLM client instance
-        settings: Application settings
-
-    Returns:
-        Configured web research team
+    创建一个包含两个专业 Agent 的团队：
+    - Web Search Agent: 使用 exa MCP 工具进行搜索
+    - Web Spider Agent: 使用 firecrawl MCP 工具抓取网页
     """
     from omni_agent.core.builtin_teams import create_web_research_team
 

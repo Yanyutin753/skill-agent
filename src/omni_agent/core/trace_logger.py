@@ -1,4 +1,38 @@
-"""增强型追踪日志，用于多 Agent 工作流，支持装饰器。"""
+"""增强型追踪日志，用于多 Agent 工作流.
+
+提供多 Agent 协作场景的追踪和可视化，支持装饰器模式。
+
+追踪事件类型:
+    - WORKFLOW_START/END: 工作流生命周期
+    - AGENT_START/END: Agent 执行（含嵌套深度）
+    - TASK_START/END: 依赖任务执行
+    - DELEGATION: Leader → Member 委派
+    - TOOL_CALL: 工具调用
+    - LLM_CALL: LLM API 调用
+    - MESSAGE_PASS: 任务间消息传递
+
+输出文件:
+    - ~/.omni-agent/traces/trace_<type>_<timestamp>_<id>.jsonl (事件流)
+    - ~/.omni-agent/traces/trace_*.summary.json (执行摘要)
+
+装饰器:
+    - @traced.workflow: 追踪整个工作流
+    - @traced.agent: 追踪 Agent 执行
+    - @traced.delegation: 追踪任务委派
+    - @traced.task: 追踪依赖任务
+
+使用示例:
+    @traced.workflow(trace_type="team")
+    async def run_team(message: str):
+        ...
+
+    # 或手动使用
+    trace = TraceLogger()
+    trace.start_trace("team", {"team_name": "research"})
+    trace.log_agent_start("leader", "coordinator", "analyze task")
+    ...
+    trace.end_trace(success=True)
+"""
 import json
 import logging
 import time
@@ -42,7 +76,21 @@ class TraceEventType(str, Enum):
 
 
 class TraceLogger:
-    """Enhanced logger for tracing multi-agent workflows."""
+    """多 Agent 工作流追踪器.
+
+    记录工作流执行的完整事件流，支持：
+    - 工作流生命周期追踪
+    - Agent 嵌套执行追踪（含深度信息）
+    - 任务委派关系追踪
+    - 依赖任务执行追踪
+    - Token 使用统计
+
+    Attributes:
+        trace_id: 追踪标识符
+        trace_file: JSONL 事件文件路径
+        events: 内存中的事件列表
+        agent_stack: Agent 执行栈（用于追踪嵌套）
+    """
 
     def __init__(
         self,

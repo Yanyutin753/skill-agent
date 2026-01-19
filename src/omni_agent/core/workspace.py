@@ -1,6 +1,15 @@
-"""工作区管理，用于会话隔离。
+"""工作区管理模块.
 
-Automatically creates isolated subdirectories for each session/request.
+为每个会话/请求自动创建隔离的子目录，支持：
+- 会话级工作目录隔离
+- 过期目录自动清理
+- 会话列表查询
+
+目录结构:
+    workspace/
+    ├── session_abc123/  # 会话 1 的工作目录
+    ├── session_def456/  # 会话 2 的工作目录
+    └── run_xxx/         # 临时运行目录
 """
 import shutil
 import time
@@ -10,7 +19,7 @@ from uuid import uuid4
 
 
 class WorkspaceManager:
-    """Manages workspace directories with session isolation."""
+    """工作区目录管理器，提供会话隔离."""
 
     def __init__(self, base_dir: str = "./workspace"):
         self.base_dir = Path(base_dir)

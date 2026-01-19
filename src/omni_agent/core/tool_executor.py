@@ -1,4 +1,19 @@
-"""工具执行器，用于处理工具调用，支持并行执行。"""
+"""工具执行器模块.
+
+处理 Agent 的工具调用，支持：
+- 单个工具执行
+- 批量工具执行（串行/并行）
+- 输出长度截断
+- 执行时间统计
+
+使用示例:
+    executor = ToolExecutor(tools={"bash": BashTool()})
+    result = await executor.execute_single(
+        tool_call_id="call_123",
+        function_name="bash",
+        arguments={"command": "ls"}
+    )
+"""
 import asyncio
 import time
 from dataclasses import dataclass

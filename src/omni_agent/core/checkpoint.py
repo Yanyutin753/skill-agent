@@ -1,4 +1,36 @@
-"""检查点系统，用于 Agent 状态持久化和恢复。"""
+"""检查点系统，用于 Agent 状态持久化和恢复.
+
+支持 Agent 执行状态的保存和恢复，实现断点续传功能。
+
+核心组件:
+    - Checkpoint: 检查点数据结构，包含消息历史、工具调用、token 使用
+    - CheckpointStorage: 存储协议，定义保存/加载接口
+    - FileCheckpointStorage: 文件系统存储实现
+    - MemoryCheckpointStorage: 内存存储实现（用于测试）
+    - CheckpointConfig: 检查点配置
+
+存储位置:
+    默认存储在 ~/.omni-agent/checkpoints/<thread_id>/ckpt_*.json
+
+使用场景:
+    - 长时间运行的任务断点续传
+    - 用户输入等待时保存状态
+    - 工具执行失败后恢复
+
+使用示例:
+    storage = FileCheckpointStorage()
+    checkpoint = Checkpoint.create(
+        agent_id="agent_1",
+        thread_id="thread_123",
+        step=5,
+        status="running",
+        messages=messages,
+    )
+    await storage.save(checkpoint)
+
+    # 恢复
+    latest = await storage.load_latest("thread_123")
+"""
 import json
 import os
 import time

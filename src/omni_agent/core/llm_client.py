@@ -1,4 +1,30 @@
-"""使用 LiteLLM 的 LLM 客户端，支持多个提供者。"""
+"""基于 LiteLLM 的 LLM 客户端，支持 100+ 个提供商.
+
+通过 LiteLLM 统一接口调用各种 LLM 提供商，包括：
+- OpenAI (gpt-4o, gpt-4, gpt-3.5-turbo)
+- Anthropic (claude-3-5-sonnet, claude-3-opus)
+- Azure OpenAI
+- Google (gemini-pro, gemini-1.5-pro)
+- DeepSeek, Qwen, Mistral, Cohere, Bedrock 等
+
+模型命名约定:
+    - OpenAI: "openai/gpt-4o" 或 "gpt-4o"
+    - Anthropic: "anthropic/claude-3-5-sonnet-20241022"
+    - Azure: "azure/deployment-name"
+    - Gemini: "gemini/gemini-1.5-pro"
+    - 自定义: "openai/model-name" + 自定义 api_base
+
+自动调整:
+    - max_tokens 自动适配各提供商限制（如 DeepSeek 8192, OpenAI 16384）
+    - 内容过滤器清理模型输出中的杂质标记
+
+使用示例:
+    client = LLMClient(
+        api_key="sk-xxx",
+        model="anthropic/claude-3-5-sonnet-20241022",
+    )
+    response = await client.generate(messages)
+"""
 import json
 import logging
 from typing import Any, AsyncIterator
@@ -38,27 +64,17 @@ def _clean_content(content: str) -> str:
 
 
 class LLMClient:
-    """LLM Client using LiteLLM for multi-provider support.
+    """基于 LiteLLM 的多提供商 LLM 客户端.
 
-    Supports 100+ LLM providers including:
-    - OpenAI (gpt-4o, gpt-4, gpt-3.5-turbo)
-    - Anthropic (claude-3-5-sonnet, claude-3-opus)
-    - Azure OpenAI
-    - Google (gemini-pro, gemini-1.5-pro)
-    - Mistral, Cohere, Bedrock, etc.
-
-    Model naming convention:
-    - OpenAI: "openai/gpt-4o" or just "gpt-4o"
-    - Anthropic: "anthropic/claude-3-5-sonnet-20241022"
-    - Azure: "azure/deployment-name"
-    - Gemini: "gemini/gemini-1.5-pro"
-    - Custom: "openai/model-name" with custom api_base
+    支持 100+ 种 LLM 提供商，通过统一接口调用。
+    自动处理 max_tokens 限制适配、消息格式转换、工具调用解析。
     """
 
-    # Provider-specific max_tokens limits
+    # 各提供商的 max_tokens 限制
+    # 超过限制时自动调整，避免 API 报错
     PROVIDER_MAX_TOKENS = {
         "deepseek": 8192,
-        "qwen": 8192,  # Actual API limit is 8192 (docs show 32K but API enforces 8192)
+        "qwen": 8192,  # 文档标称 32K，但 API 实际限制 8192
         "glm": 8192,
         "openai": 16384,
         "anthropic": 8192,
@@ -83,21 +99,19 @@ class LLMClient:
         self.retry_callback = None
 
     def _get_max_tokens_limit(self) -> int:
-        """Get provider-specific max_tokens limit based on model name."""
+        """根据模型名称获取提供商特定的 max_tokens 限制."""
         model_lower = self.model.lower()
 
         for provider, limit in self.PROVIDER_MAX_TOKENS.items():
             if provider in model_lower:
                 return limit
 
-        # Default limit for unknown providers
-        return 16384
+        return 16384  # 未知提供商默认值
 
     def _adjust_max_tokens(self, requested: int) -> int:
-        """Adjust max_tokens to respect provider limits."""
+        """调整 max_tokens 以适应提供商限制."""
         limit = self._get_max_tokens_limit()
         if requested > limit:
-            # Use debug level to avoid cluttering CLI output
             logger.debug(
                 f"Requested max_tokens={requested} exceeds {self.model} limit of {limit}. "
                 f"Adjusting to {limit}."
@@ -106,10 +120,10 @@ class LLMClient:
         return requested
 
     def _convert_messages(self, messages: list[Message]) -> tuple[str | None, list[dict[str, Any]]]:
-        """Convert internal message format to OpenAI format.
+        """将内部消息格式转换为 OpenAI API 格式.
 
         Returns:
-            Tuple of (system_message, api_messages)
+            (system_message, api_messages) 元组
         """
         system_message = None
         api_messages = []
@@ -155,7 +169,7 @@ class LLMClient:
         return system_message, api_messages
 
     def _convert_tools(self, tools: list[dict[str, Any]] | None) -> list[dict[str, Any]] | None:
-        """Convert tools to OpenAI format if needed."""
+        """将工具定义转换为 OpenAI 格式（如需要）."""
         if not tools:
             return None
 
@@ -182,7 +196,7 @@ class LLMClient:
         max_tokens: int,
         metadata: dict[str, Any] | None = None,
     ) -> Any:
-        """Execute API request via litellm."""
+        """通过 LiteLLM 执行 API 请求."""
         if system:
             messages = [{"role": "system", "content": system}] + messages
 
@@ -215,13 +229,16 @@ class LLMClient:
         max_tokens: int = 16384,
         metadata: dict[str, Any] | None = None,
     ) -> LLMResponse:
-        """Generate response from LLM.
+        """生成 LLM 响应（同步模式）.
 
         Args:
-            messages: Conversation messages
-            tools: Available tools
-            max_tokens: Maximum tokens in response
-            metadata: Metadata for tracing (e.g., trace_id for Langfuse)
+            messages: 对话消息列表
+            tools: 可用工具定义
+            max_tokens: 响应最大 token 数
+            metadata: 追踪元数据（如 Langfuse trace_id）
+
+        Returns:
+            LLMResponse 包含 content、tool_calls、usage 等
         """
         max_tokens = self._adjust_max_tokens(max_tokens)
 
@@ -286,13 +303,18 @@ class LLMClient:
         max_tokens: int = 16384,
         metadata: dict[str, Any] | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
-        """Generate streaming response from LLM.
+        """生成 LLM 流式响应.
+
+        事件类型:
+        - content_delta: 内容增量
+        - tool_use: 工具调用
+        - done: 完成，包含完整 LLMResponse
 
         Args:
-            messages: Conversation messages
-            tools: Available tools
-            max_tokens: Maximum tokens in response
-            metadata: Metadata for tracing (e.g., trace_id for Langfuse)
+            messages: 对话消息列表
+            tools: 可用工具定义
+            max_tokens: 响应最大 token 数
+            metadata: 追踪元数据
         """
         max_tokens = self._adjust_max_tokens(max_tokens)
 

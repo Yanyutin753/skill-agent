@@ -1,4 +1,25 @@
-"""令牌管理，用于消息历史，支持自动摘要。"""
+"""Token 管理模块，实现消息历史的自动摘要压缩.
+
+核心功能:
+    - 精确的 token 计数（使用 tiktoken cl100k_base 编码器）
+    - 自动消息历史压缩（当 token 超限或轮次过多时）
+    - 核心记忆提取与保持
+
+压缩策略:
+    触发条件（满足任一）:
+    1. 对话轮次超过 summarize_after_rounds（默认 2 轮）
+    2. Token 数量超过 token_limit
+
+    压缩方式:
+    - 保留最近 1 轮的完整对话
+    - 将早期轮次压缩为「核心记忆」
+    - 核心记忆包含：用户意图、关键信息、已完成操作、待处理事项
+
+使用示例:
+    manager = TokenManager(llm_client, token_limit=120000)
+    tokens = manager.estimate_tokens(messages)
+    compressed = await manager.maybe_summarize_messages(messages)
+"""
 import logging
 from typing import Any
 
@@ -11,30 +32,30 @@ from omni_agent.schemas.message import Message
 
 
 class TokenManager:
-    """Manages token counting and message history summarization.
+    """Token 计数和消息历史压缩管理器.
 
-    Features:
-    - Accurate token counting using tiktoken (cl100k_base encoder)
-    - Automatic message history summarization when rounds exceed threshold
-    - Preserves user messages while summarizing agent execution rounds
-    - Extracts core memory for context continuity
-    - Fallback to character-based estimation if tiktoken is unavailable
+    功能特性:
+    - 使用 tiktoken (cl100k_base) 精确计算 token
+    - 自动压缩历史消息（轮次/token 超限时触发）
+    - 保留用户消息，压缩 Agent 执行轮次
+    - 提取核心记忆保持上下文连贯性
+    - tiktoken 不可用时回退到字符估算
     """
 
     def __init__(
         self,
         llm_client: LLMClient,
-        token_limit: int = 120000,  # Default for claude-3-5-sonnet (200k context)
+        token_limit: int = 120000,
         enable_summarization: bool = True,
-        summarize_after_rounds: int = 2,  # 超过 N 轮后触发压缩
+        summarize_after_rounds: int = 2,
     ):
-        """Initialize Token Manager.
+        """初始化 Token 管理器.
 
         Args:
-            llm_client: LLM client for generating summaries
-            token_limit: Maximum tokens before triggering summarization
-            enable_summarization: Whether to enable automatic summarization
-            summarize_after_rounds: Number of rounds after which to trigger compression
+            llm_client: LLM 客户端，用于生成摘要
+            token_limit: 触发压缩的 token 阈值（默认 120k，适配 claude-3-5-sonnet 200k 上下文）
+            enable_summarization: 是否启用自动压缩
+            summarize_after_rounds: 超过多少轮后触发压缩（默认 2 轮）
         """
         self.llm = llm_client
         self.token_limit = token_limit
@@ -53,16 +74,10 @@ class TokenManager:
             self.tiktoken_available = False
 
     def estimate_tokens(self, messages: list[Message]) -> int:
-        """Accurately calculate token count for message history using tiktoken.
+        """精确计算消息历史的 token 数.
 
-        Uses cl100k_base encoder (GPT-4/Claude/MiniMax compatible).
-        Falls back to character-based estimation if tiktoken is unavailable.
-
-        Args:
-            messages: List of messages to count tokens for
-
-        Returns:
-            Estimated token count
+        使用 cl100k_base 编码器（兼容 GPT-4/Claude/MiniMax）。
+        tiktoken 不可用时回退到字符估算。
         """
         if not self.tiktoken_available:
             return self._estimate_tokens_fallback(messages)
@@ -93,15 +108,9 @@ class TokenManager:
         return total_tokens
 
     def _estimate_tokens_fallback(self, messages: list[Message]) -> int:
-        """Fallback token estimation method (when tiktoken is unavailable).
+        """回退的 token 估算方法（tiktoken 不可用时）.
 
-        Uses character-based estimation: ~2.5 characters = 1 token
-
-        Args:
-            messages: List of messages to count tokens for
-
-        Returns:
-            Estimated token count
+        使用字符估算：约 2.5 字符 = 1 token
         """
         total_chars = 0
         for msg in messages:

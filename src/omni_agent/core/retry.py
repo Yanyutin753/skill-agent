@@ -1,4 +1,20 @@
-"""API 调用的重试逻辑，支持指数退避。"""
+"""API 调用重试模块.
+
+提供指数退避重试逻辑，用于处理 LLM API 调用的临时失败。
+
+特性:
+    - 指数退避: 延迟时间随重试次数指数增长
+    - 最大延迟限制: 防止延迟过长
+    - 随机抖动: 避免雷群效应
+    - 重试回调: 支持自定义重试通知
+
+使用示例:
+    config = RetryConfig(max_retries=3, initial_delay=1.0)
+
+    @async_retry(config)
+    async def call_api():
+        ...
+"""
 import asyncio
 import logging
 from dataclasses import dataclass
@@ -11,7 +27,16 @@ T = TypeVar("T")
 
 @dataclass
 class RetryConfig:
-    """Configuration for retry logic."""
+    """重试配置.
+
+    Attributes:
+        enabled: 是否启用重试
+        max_retries: 最大重试次数
+        initial_delay: 初始延迟（秒）
+        max_delay: 最大延迟（秒）
+        exponential_base: 指数退避乘数
+        jitter: 是否添加随机抖动
+    """
 
     enabled: bool = True
     max_retries: int = 3

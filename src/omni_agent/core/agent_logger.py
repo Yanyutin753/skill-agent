@@ -1,4 +1,28 @@
-"""Agent 运行日志，支持结构化日志和可插拔存储。"""
+"""Agent 运行日志模块.
+
+支持结构化日志和可插拔存储后端（文件/Redis）。
+
+日志事件类型:
+    - RUN_START: 运行开始
+    - STEP: 执行步骤（含 token 使用统计）
+    - REQUEST: LLM 请求（消息、工具列表）
+    - RESPONSE: LLM 响应（内容、thinking、工具调用）
+    - TOOL_EXECUTION: 工具执行（名称、参数、结果、耗时）
+    - COMPLETION: 运行完成
+
+日志输出:
+    - 控制台: 始终输出，格式化显示
+    - 文件: 当 ENABLE_DEBUG_LOGGING=true 时，写入 RunLogStorage
+
+使用示例:
+    logger = AgentLogger()
+    logger.start_new_run()
+    logger.log_step(step=1, max_steps=50, token_count=1000, token_limit=120000)
+    logger.log_request(messages, tools)
+    logger.log_response(content, tool_calls=tool_calls)
+    logger.log_tool_execution("bash", {"command": "ls"}, success=True, content="...")
+    logger.log_completion("Task completed", total_steps=5)
+"""
 import asyncio
 import json
 import logging
@@ -13,9 +37,10 @@ logger = logging.getLogger(__name__)
 
 
 class AgentLogger:
-    """Agent run logger with async storage backend support.
+    """Agent 运行日志记录器.
 
-    Supports both file storage and Redis storage for cloud debugging.
+    支持异步存储后端（文件/Redis），用于调试和追踪 Agent 执行过程。
+    日志同时输出到控制台和存储后端。
     """
 
     def __init__(self, storage: Optional[RunLogStorage] = None):

@@ -1,4 +1,24 @@
-"""核心 Agent 实现，采用统一架构。"""
+"""核心 Agent 实现，采用统一架构.
+
+本模块实现了 Agent 的完整生命周期管理，包括：
+- 事件驱动的执行流程（EventEmitter + EventType）
+- 状态管理（AgentState + AgentStatus）
+- 执行循环（AgentLoop）
+- Hook 扩展机制（HookManager + AgentHook）
+- Checkpoint 断点续传
+
+核心类:
+    - Agent: 用户接口，封装所有配置和执行逻辑
+    - AgentLoop: 执行引擎，负责 LLM 调用和工具执行
+    - AgentState: 运行时状态，包括消息历史、token 统计等
+    - EventEmitter: 事件分发器，支持 STEP_START/LLM_RESPONSE/TOOL_START 等事件
+
+执行流程:
+    1. Agent.run() 调用 AgentLoop.run()
+    2. AgentLoop 循环执行 _execute_step()
+    3. 每步: LLM 生成 -> 解析工具调用 -> 执行工具 -> 添加结果到消息
+    4. 直到: 无工具调用（完成）/ max_steps / 等待用户输入 / 错误
+"""
 import json
 import time
 from abc import ABC
