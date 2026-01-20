@@ -24,6 +24,7 @@
 - **多后端 Session 存储**: 支持 File/Redis/PostgreSQL 三种存储后端
 - **Web 前端**: ChatGPT 风格的 React 前端界面
 - **人工确认机制**: Agent 可主动请求用户补充信息或确认敏感操作
+- **Ralph 迭代模式**: 支持 Ralph Loop 迭代开发方法论，智能上下文管理与自动完成检测
 
 ### 多 Agent 协作
 - **SpawnAgentTool**: 动态创建子 Agent 执行委派任务（类似 Claude Code Task 工具）
@@ -598,6 +599,54 @@ Team 系统采用 Leader-Member 模式进行任务协作：
 | `coder` | 编程与技术问题 | `read`, `write`, `edit`, `bash` |
 | `reviewer` | 质量审查与反馈 | `read` |
 | `analyst` | 数据分析与洞察 | 所有工具 |
+
+### Ralph 迭代模式
+
+Ralph Loop 是一种迭代开发方法论，通过重复执行相同的 prompt，让 AI 看到自己之前的工作并逐步改进，直到任务完成。
+
+```python
+from omni_agent.core import Agent, RalphConfig
+
+# 方式1: 简单启用（使用默认配置）
+agent = Agent(llm_client=llm_client, tools=tools, ralph=True)
+
+# 方式2: 自定义配置
+agent = Agent(
+    llm_client=llm_client,
+    tools=tools,
+    ralph=RalphConfig(
+        max_iterations=20,
+        completion_promise="TASK COMPLETE",
+        idle_threshold=3,
+    ),
+)
+
+# 统一入口执行
+result, logs = await agent.run(task="重构 src/utils 模块")
+```
+
+核心组件：
+
+| 组件 | 功能 |
+|------|------|
+| `ToolResultCache` | 工具结果缓存，支持摘要和完整内容按需获取 |
+| `WorkingMemory` | 结构化工作记忆，持久化到 `.ralph/memory.json` |
+| `ContextManager` | 上下文管理器，协调摘要和迭代历史 |
+| `CompletionDetector` | 多条件完成检测（Promise标签、最大迭代、空闲检测） |
+
+Ralph 专用工具：
+
+| 工具 | 描述 |
+|------|------|
+| `get_cached_result` | 获取之前工具调用的完整结果 |
+| `get_working_memory` | 查看工作记忆摘要 |
+| `update_working_memory` | 更新进度、发现、待办等 |
+| `signal_completion` | 信号任务完成 |
+
+完成检测条件：
+- `PROMISE_TAG`: 检测 `<promise>TASK COMPLETE</promise>` 标签
+- `MAX_ITERATIONS`: 达到最大迭代次数
+- `IDLE_THRESHOLD`: 连续 N 次无文件修改
 
 ### Sandbox 沙箱隔离
 

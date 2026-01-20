@@ -271,6 +271,48 @@ Team uses Leader-Member pattern for collaborative task execution (`src/omni_agen
 
 **Workflow Tracking**: All team runs are logged in TraceLogger with delegation chains
 
+### Ralph Iterative Mode
+
+Ralph Loop is an iterative development methodology (`src/omni_agent/core/ralph.py`):
+
+**Core Concept**: Same prompt executed repeatedly, AI sees previous work in files and iteratively improves until completion.
+
+**Components**:
+- `RalphConfig`: Configuration for iterations, completion conditions, context strategy
+- `ToolResultCache`: Caches tool results with summaries, supports on-demand full retrieval
+- `WorkingMemory`: Structured memory persisted to `.ralph/memory.json`
+- `ContextManager`: Coordinates summarization and iteration history
+- `CompletionDetector`: Multi-condition completion detection
+
+**Usage**:
+```python
+from omni_agent.core import Agent, RalphConfig
+
+# Simple: ralph=True uses default config
+agent = Agent(llm_client=llm_client, tools=tools, ralph=True)
+
+# Custom: ralph=RalphConfig(...) for custom settings
+agent = Agent(
+    llm_client=llm_client,
+    tools=tools,
+    ralph=RalphConfig(max_iterations=20, idle_threshold=3),
+)
+
+# Unified entry - run() auto-detects Ralph mode
+result, logs = await agent.run(task="Refactor utils module")
+```
+
+**Completion Conditions**:
+- `PROMISE_TAG`: Detects `<promise>TASK COMPLETE</promise>` tag
+- `MAX_ITERATIONS`: Reached max iterations
+- `IDLE_THRESHOLD`: No file changes for N consecutive iterations
+
+**Ralph Tools** (auto-injected):
+- `get_cached_result`: Retrieve full content of previous tool results
+- `get_working_memory`: View memory summary
+- `update_working_memory`: Update progress, findings, todos
+- `signal_completion`: Signal task completion with promise tag
+
 ### RAG Knowledge Base
 
 PostgreSQL + pgvector based hybrid search system (`src/omni_agent/rag/`):

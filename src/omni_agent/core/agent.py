@@ -25,7 +25,7 @@ from abc import ABC
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable, Awaitable, Optional
+from typing import Any, AsyncIterator, Callable, Awaitable, Coroutine, Optional
 from uuid import uuid4
 
 from omni_agent.core.checkpoint import Checkpoint, CheckpointConfig
@@ -38,9 +38,15 @@ from omni_agent.schemas.message import Message, UserInputRequest, UserInputField
 from omni_agent.skills.skill_loader import SkillLoader
 from omni_agent.tools.base import Tool
 from omni_agent.tools.user_input_tool import GetUserInputTool, is_user_input_tool_call, parse_user_input_fields
+from omni_agent.core.ralph import RalphConfig, RalphLoop
 
 
 class EventType(Enum):
+    """Agent 事件类型.
+    
+    定义 Agent 执行过程中可能触发的所有事件类型，
+    用于事件驱动的执行流程和日志记录。
+    """
     STEP_START = "step_start"
     STEP_END = "step_end"
     LLM_REQUEST = "llm_request"
@@ -51,10 +57,17 @@ class EventType(Enum):
     COMPLETION = "completion"
     ERROR = "error"
     TOKEN_SUMMARY = "token_summary"
+    RALPH_ITERATION_START = "ralph_iteration_start"
+    RALPH_ITERATION_END = "ralph_iteration_end"
+    RALPH_COMPLETION = "ralph_completion"
 
 
 @dataclass
 class AgentEvent:
+    """Agent 事件.
+    
+    封装事件类型、数据、步骤和时间戳，用于事件分发。
+    """
     type: EventType
     data: dict[str, Any]
     step: int = 0
@@ -65,6 +78,10 @@ EventHandler = Callable[[AgentEvent], Awaitable[None]]
 
 
 class EventEmitter:
+    """事件分发器.
+    
+    支持按事件类型注册处理器，也支持全局处理器接收所有事件。
+    """
     def __init__(self) -> None:
         self._handlers: dict[EventType, list[EventHandler]] = {}
         self._global_handlers: list[EventHandler] = []
@@ -98,6 +115,14 @@ class EventEmitter:
 
 
 class AgentStatus(Enum):
+    """Agent 运行状态.
+    
+    IDLE: 空闲，尚未开始
+    RUNNING: 执行中
+    WAITING_INPUT: 等待用户输入
+    COMPLETED: 已完成
+    ERROR: 发生错误
+    """
     IDLE = "idle"
     RUNNING = "running"
     WAITING_INPUT = "waiting_input"
@@ -107,6 +132,11 @@ class AgentStatus(Enum):
 
 @dataclass
 class AgentState:
+    """Agent 运行时状态.
+    
+    管理 Agent 的完整运行时状态，包括执行状态、消息历史、
+    token 统计、用户输入等待和断点续传支持。
+    """
     status: AgentStatus = AgentStatus.IDLE
     current_step: int = 0
     max_steps: int = 50
@@ -215,12 +245,21 @@ class AgentState:
 
 @dataclass
 class HookContext:
+    """Hook 执行上下文.
+    
+    传递给 AgentHook 的上下文信息，包含当前状态和元数据。
+    """
     state: AgentState
     step: int = 0
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class AgentHook(ABC):
+    """Agent 钩子基类.
+    
+    定义执行前、执行中、执行后的扩展点，允许自定义行为注入。
+    通过 priority 属性控制多个钩子的执行顺序。
+    """
     priority: int = 100
 
     async def before_run(self, ctx: HookContext) -> None:
@@ -234,6 +273,11 @@ class AgentHook(ABC):
 
 
 class HookManager:
+    """Hook 管理器.
+    
+    管理多个 AgentHook 实例，按优先级排序执行，
+    支持 before_run、on_step、after_run 三个触发点。
+    """
     def __init__(self) -> None:
         self._hooks: list[AgentHook] = []
 
@@ -261,15 +305,38 @@ class HookManager:
             await hook.after_run(ctx, result, success)
 
 
+ToolResultCallback = Callable[
+    [str, str, dict[str, Any], str],
+    Coroutine[Any, Any, None]
+]
+
+
 @dataclass
 class LoopConfig:
+    """执行循环配置.
+
+    Attributes:
+        max_steps: 最大执行步数
+        parallel_tools: 是否并行执行工具
+        checkpoint: 断点续传配置
+        on_tool_result: 工具执行后的回调 (tool_call_id, tool_name, arguments, content)
+    """
     max_steps: int = 50
     parallel_tools: bool = False
     checkpoint: Optional[CheckpointConfig] = None
+    on_tool_result: Optional[ToolResultCallback] = None
 
 
 @dataclass
 class StepResult:
+    """单步执行结果.
+    
+    Attributes:
+        completed: 任务是否完成
+        waiting_input: 是否等待用户输入
+        content: 响应内容
+        error: 错误信息（如有）
+    """
     completed: bool = False
     waiting_input: bool = False
     content: str = ""
@@ -277,6 +344,16 @@ class StepResult:
 
 
 class AgentLoop:
+    """Agent 执行引擎.
+
+    核心执行循环，负责协调 LLM 调用、工具执行和状态管理。
+    支持同步/流式执行、断点续传和用户输入等待。
+
+    执行流程:
+        1. reset_for_run() 重置状态
+        2. 循环 _execute_step() 直到完成/max_steps/等待输入
+        3. 每步: LLM 生成 -> 解析工具 -> 执行工具 -> 添加结果
+    """
     def __init__(
         self,
         llm_client: LLMClient,
@@ -581,6 +658,15 @@ class AgentLoop:
                 name=exec_result.tool_name,
             ))
 
+            if self._config.on_tool_result:
+                tool_args = tool_calls_data[[r.tool_call_id for r in results].index(exec_result.tool_call_id)][2]
+                await self._config.on_tool_result(
+                    exec_result.tool_call_id,
+                    exec_result.tool_name,
+                    tool_args,
+                    tool_content,
+                )
+
         await self._events.emit(AgentEvent(
             type=EventType.STEP_END,
             step=state.current_step,
@@ -736,6 +822,15 @@ class AgentLoop:
                 name=exec_result.tool_name,
             ))
 
+            if self._config.on_tool_result:
+                tool_args = tool_calls_data[[r.tool_call_id for r in results].index(exec_result.tool_call_id)][2]
+                await self._config.on_tool_result(
+                    exec_result.tool_call_id,
+                    exec_result.tool_name,
+                    tool_args,
+                    tool_content,
+                )
+
         ckpt_config = self._config.checkpoint
         if self.checkpoint_enabled and ckpt_config and ckpt_config.save_on_tool_execution:
             await self._save_checkpoint(state, trigger="tool_execution")
@@ -843,6 +938,21 @@ class AgentLoop:
 
 
 class Agent:
+    """AI Agent 用户接口.
+
+    封装所有配置和执行逻辑，提供简洁的 API:
+    - run()/run_stream(): 标准执行模式
+    - ralph 参数: 启用 Ralph 迭代模式
+    - hooks: 扩展执行流程
+
+    支持功能:
+        - 多种系统提示构建方式
+        - Token 管理和自动摘要
+        - 工具执行（支持并行）
+        - 用户输入等待和恢复
+        - Langfuse 追踪集成
+        - Ralph 迭代开发模式
+    """
     def __init__(
         self,
         llm_client: LLMClient,
@@ -861,6 +971,7 @@ class Agent:
         user_id: Optional[str] = None,
         session_id: Optional[str] = None,
         parallel_tools: bool = False,
+        ralph: bool | RalphConfig = False,
     ) -> None:
         self.llm = llm_client
         self.name = name or "agent"
@@ -890,12 +1001,27 @@ class Agent:
             parallel_execution=parallel_tools,
         )
 
+        self._ralph_loop: Optional[RalphLoop] = None
+        if ralph:
+            ralph_config = ralph if isinstance(ralph, RalphConfig) else RalphConfig(enabled=True)
+            self._ralph_loop = RalphLoop(
+                config=ralph_config,
+                workspace_dir=self.workspace_dir,
+                summarize_fn=self._summarize_for_ralph,
+            )
+
+        loop_config = LoopConfig(
+            max_steps=max_steps,
+            parallel_tools=parallel_tools,
+            on_tool_result=self._handle_ralph_tool_result if self._ralph_loop else None,
+        )
+
         self._loop = AgentLoop(
             llm_client=llm_client,
             tool_executor=self._tool_executor,
             token_manager=self.token_manager,
             event_emitter=self._events,
-            config=LoopConfig(max_steps=max_steps, parallel_tools=parallel_tools),
+            config=loop_config,
         )
         self._loop.set_tools(self.tools)
 
@@ -1094,17 +1220,43 @@ class Agent:
                     break
         self.tracer.start_trace(task)
 
-    async def run(self) -> tuple[str, list[dict[str, Any]]]:
+    async def run(self, task: Optional[str] = None) -> tuple[str, list[dict[str, Any]]]:
+        if self._ralph_loop:
+            if task:
+                return await self._run_ralph_internal(task)
+            user_msg = self._get_last_user_message()
+            if user_msg:
+                return await self._run_ralph_internal(user_msg)
+            raise ValueError("Ralph mode requires a task. Pass task parameter or call add_user_message() first.")
+
         self._setup_tracer()
         self._setup_execution_logging()
         result = await self._loop.run(self._state, self._get_llm_metadata())
         return result, self.execution_logs
 
-    async def run_stream(self) -> AsyncIterator[dict[str, Any]]:
+    async def run_stream(self, task: Optional[str] = None) -> AsyncIterator[dict[str, Any]]:
+        if self._ralph_loop:
+            if not task:
+                task = self._get_last_user_message()
+            if not task:
+                yield {"type": "error", "data": {"message": "Ralph mode requires a task"}}
+                return
+            async for event in self._run_ralph_stream_internal(task):
+                yield event
+            return
+
         self._setup_tracer()
         self._setup_execution_logging()
         async for event in self._loop.run_stream(self._state, self._get_llm_metadata()):
             yield event
+
+    def _get_last_user_message(self) -> Optional[str]:
+        for msg in reversed(self._state.messages):
+            if msg.role == "user" and msg.content:
+                if isinstance(msg.content, str):
+                    return msg.content
+                return None
+        return None
 
     def _get_llm_metadata(self) -> Optional[dict[str, Any]]:
         if self.tracer:
@@ -1191,3 +1343,264 @@ class Agent:
             return content
         truncated = content[:self.tool_output_limit]
         return f"{truncated}\n\n[... output truncated, {len(content) - self.tool_output_limit} more characters ...]"
+
+    async def _handle_ralph_tool_result(
+        self,
+        tool_call_id: str,
+        tool_name: str,
+        arguments: dict[str, Any],
+        content: str,
+    ) -> None:
+        if self._ralph_loop:
+            await self._ralph_loop.process_tool_result(
+                tool_call_id=tool_call_id,
+                tool_name=tool_name,
+                arguments=arguments,
+                content=content,
+            )
+
+    async def _summarize_for_ralph(self, content: str) -> str:
+        response = await self.llm.generate(
+            messages=[
+                Message(role="system", content="You are a helpful assistant that creates concise summaries."),
+                Message(role="user", content=content),
+            ],
+            tools=None,
+        )
+        return response.content or content[:500]
+
+    @property
+    def ralph_loop(self) -> Optional[RalphLoop]:
+        return self._ralph_loop
+
+    @property
+    def ralph_enabled(self) -> bool:
+        return self._ralph_loop is not None
+
+    def get_ralph_tools(self) -> list[Tool]:
+        if not self._ralph_loop:
+            return []
+
+        from omni_agent.tools.ralph_tools import (
+            GetCachedResultTool,
+            GetWorkingMemoryTool,
+            UpdateWorkingMemoryTool,
+            SignalCompletionTool,
+        )
+
+        return [
+            GetCachedResultTool(self._ralph_loop.context_manager),
+            GetWorkingMemoryTool(self._ralph_loop.working_memory),
+            UpdateWorkingMemoryTool(self._ralph_loop.working_memory),
+            SignalCompletionTool(),
+        ]
+
+    def _inject_ralph_tools(self) -> None:
+        """注入 Ralph 专用工具.
+        
+        将 get_cached_result、update_working_memory、get_working_memory、
+        signal_completion 等工具注入到 Agent 的工具集中。
+        """
+        if not self._ralph_loop:
+            return
+
+        ralph_tools = self.get_ralph_tools()
+        for tool in ralph_tools:
+            self.tools[tool.name] = tool
+        self._loop.set_tools(self.tools)
+
+    def _build_ralph_system_prompt(self, base_prompt: str, task: str) -> str:
+        """构建 Ralph 模式的系统提示.
+        
+        在基础系统提示上追加 Ralph 上下文信息，包括:
+        - 当前迭代次数
+        - 工作记忆内容
+        - 完成信号指南
+        - 工具使用说明
+        
+        Args:
+            base_prompt: 基础系统提示
+            task: 当前任务描述
+            
+        Returns:
+            增强后的系统提示
+        """
+        if not self._ralph_loop:
+            return base_prompt
+
+        context_prefix = self._ralph_loop.get_context_prefix()
+        iteration = self._ralph_loop.state.iteration
+
+        ralph_section = f"""
+## Ralph Mode (Iteration {iteration})
+
+You are operating in Ralph iterative mode. Your task is:
+{task}
+
+### Working Memory
+{context_prefix}
+
+### Completion
+When you have completed the task, use the `signal_completion` tool or output:
+<promise>TASK COMPLETE</promise>
+
+### Guidelines
+- Review the working memory for context from previous iterations
+- Use `update_working_memory` to record progress and findings
+- Use `get_cached_result` to retrieve full tool outputs when summaries are insufficient
+- Focus on making incremental progress each iteration
+"""
+        return f"{base_prompt}\n{ralph_section}"
+
+    async def _run_ralph_internal(self, task: str) -> tuple[str, list[dict[str, Any]]]:
+        """执行 Ralph 迭代循环.
+        
+        Ralph 模式下，同一任务会反复执行多次迭代，Agent 可以看到之前的工作成果
+        并逐步改进，直到检测到完成条件。
+        
+        Args:
+            task: 要执行的任务描述
+            
+        Returns:
+            (最终结果, 执行日志列表)
+        """
+        if not self._ralph_loop:
+            raise RuntimeError("Ralph mode is not enabled. Initialize Agent with ralph_config.")
+
+        self._inject_ralph_tools()
+        self._setup_tracer()
+        self._setup_execution_logging()
+
+        final_result = ""
+
+        while not self._ralph_loop.state.completed:
+            iteration = self._ralph_loop.start_iteration()
+
+            await self._events.emit(AgentEvent(
+                type=EventType.RALPH_ITERATION_START,
+                step=0,
+                data={"iteration": iteration, "max_iterations": self._ralph_loop.config.max_iterations},
+            ))
+
+            ralph_system_prompt = self._build_ralph_system_prompt(self.system_prompt, task)
+            self._state.messages = [
+                Message(role="system", content=ralph_system_prompt),
+                Message(role="user", content=task),
+            ]
+
+            result = await self._loop.run(self._state, self._get_llm_metadata())
+            final_result = result
+
+            completion_check = self._ralph_loop.check_completion(result)
+
+            await self._events.emit(AgentEvent(
+                type=EventType.RALPH_ITERATION_END,
+                step=0,
+                data={
+                    "iteration": iteration,
+                    "completed": completion_check.completed,
+                    "reason": completion_check.reason.value if completion_check.reason else None,
+                },
+            ))
+
+            if completion_check.completed:
+                await self._events.emit(AgentEvent(
+                    type=EventType.RALPH_COMPLETION,
+                    step=0,
+                    data={
+                        "iteration": iteration,
+                        "reason": completion_check.reason.value if completion_check.reason else None,
+                        "message": completion_check.message,
+                    },
+                ))
+                break
+
+            messages_content = "\n".join(
+                f"{m.role}: {m.content[:500]}" for m in self._state.messages if m.content
+            )
+            await self._ralph_loop.summarize_iteration(messages_content)
+
+        return final_result, self.execution_logs
+
+    async def run_ralph(self, task: str) -> tuple[str, list[dict[str, Any]]]:
+        return await self._run_ralph_internal(task)
+
+    async def _run_ralph_stream_internal(self, task: str) -> AsyncIterator[dict[str, Any]]:
+        """流式执行 Ralph 迭代循环.
+        
+        与 _run_ralph_internal 相同，但以流式方式输出中间事件，
+        包括迭代开始/结束、LLM 响应流和完成信号。
+        
+        Args:
+            task: 要执行的任务描述
+            
+        Yields:
+            事件字典，包含 type 和 data 字段
+        """
+        if not self._ralph_loop:
+            yield {"type": "error", "data": {"message": "Ralph mode is not enabled"}}
+            return
+
+        self._inject_ralph_tools()
+        self._setup_tracer()
+        self._setup_execution_logging()
+
+        while not self._ralph_loop.state.completed:
+            iteration = self._ralph_loop.start_iteration()
+
+            yield {
+                "type": "ralph_iteration_start",
+                "data": {"iteration": iteration, "max_iterations": self._ralph_loop.config.max_iterations},
+            }
+
+            ralph_system_prompt = self._build_ralph_system_prompt(self.system_prompt, task)
+            self._state.messages = [
+                Message(role="system", content=ralph_system_prompt),
+                Message(role="user", content=task),
+            ]
+
+            final_content = ""
+            async for event in self._loop.run_stream(self._state, self._get_llm_metadata()):
+                yield event
+                if event["type"] == "done":
+                    final_content = event.get("data", {}).get("message", "")
+
+            completion_check = self._ralph_loop.check_completion(final_content)
+
+            yield {
+                "type": "ralph_iteration_end",
+                "data": {
+                    "iteration": iteration,
+                    "completed": completion_check.completed,
+                    "reason": completion_check.reason.value if completion_check.reason else None,
+                },
+            }
+
+            if completion_check.completed:
+                yield {
+                    "type": "ralph_completion",
+                    "data": {
+                        "iteration": iteration,
+                        "reason": completion_check.reason.value if completion_check.reason else None,
+                        "message": completion_check.message,
+                    },
+                }
+                break
+
+            messages_content = "\n".join(
+                f"{m.role}: {m.content[:500]}" for m in self._state.messages if m.content
+            )
+            await self._ralph_loop.summarize_iteration(messages_content)
+
+    async def run_ralph_stream(self, task: str) -> AsyncIterator[dict[str, Any]]:
+        async for event in self._run_ralph_stream_internal(task):
+            yield event
+
+    def get_ralph_status(self) -> Optional[dict[str, Any]]:
+        if not self._ralph_loop:
+            return None
+        return self._ralph_loop.get_status()
+
+    def reset_ralph(self) -> None:
+        if self._ralph_loop:
+            self._ralph_loop.reset()
