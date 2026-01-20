@@ -24,6 +24,7 @@
 - **多后端 Session 存储**: 支持 File/Redis/PostgreSQL 三种存储后端
 - **Web 前端**: ChatGPT 风格的 React 前端界面
 - **人工确认机制**: Agent 可主动请求用户补充信息或确认敏感操作
+- **Ralph 迭代模式**: 支持 Ralph Loop 迭代开发方法论，智能上下文管理与自动完成检测
 
 ### 多 Agent 协作
 - **SpawnAgentTool**: 动态创建子 Agent 执行委派任务（类似 Claude Code Task 工具）
@@ -598,6 +599,178 @@ Team 系统采用 Leader-Member 模式进行任务协作：
 | `coder` | 编程与技术问题 | `read`, `write`, `edit`, `bash` |
 | `reviewer` | 质量审查与反馈 | `read` |
 | `analyst` | 数据分析与洞察 | 所有工具 |
+
+### Ralph 迭代模式
+
+Ralph Loop 是一种迭代开发方法论，通过重复执行相同的 prompt，让 AI 看到自己之前的工作并逐步改进，直到任务完成。
+
+#### 基础用法
+
+```python
+from omni_agent.core import Agent, RalphConfig, LLMClient
+from omni_agent.tools.file_tools import ReadTool, WriteTool, EditTool
+from omni_agent.tools.bash_tool import BashTool
+
+llm_client = LLMClient(
+    api_key="your_api_key",
+    model="openai/gpt-4o",
+)
+
+tools = [
+    ReadTool("./workspace"),
+    WriteTool("./workspace"),
+    EditTool("./workspace"),
+    BashTool(),
+]
+
+# 方式1: 简单启用（使用默认配置）
+agent = Agent(llm_client=llm_client, tools=tools, ralph=True)
+
+# 方式2: 自定义配置
+agent = Agent(
+    llm_client=llm_client,
+    tools=tools,
+    ralph=RalphConfig(
+        max_iterations=20,
+        completion_promise="TASK COMPLETE",
+        idle_threshold=3,
+    ),
+)
+
+# 统一入口执行
+result, logs = await agent.run(task="重构 src/utils 模块")
+```
+
+#### 完整示例
+
+```python
+import asyncio
+from pathlib import Path
+
+from omni_agent.core import Agent, RalphConfig, LLMClient
+from omni_agent.core.config import Settings
+from omni_agent.tools.file_tools import ReadTool, WriteTool, EditTool
+from omni_agent.tools.bash_tool import BashTool
+
+
+async def ralph_demo():
+    settings = Settings()
+
+    llm_client = LLMClient(
+        api_key=settings.LLM_API_KEY,
+        api_base=settings.LLM_API_BASE,
+        model=settings.LLM_MODEL,
+    )
+
+    workspace = Path("./workspace")
+    workspace.mkdir(exist_ok=True)
+
+    tools = [
+        ReadTool(str(workspace)),
+        WriteTool(str(workspace)),
+        EditTool(str(workspace)),
+        BashTool(),
+    ]
+
+    ralph_config = RalphConfig(
+        enabled=True,
+        max_iterations=5,
+        idle_threshold=2,
+    )
+
+    agent = Agent(
+        llm_client=llm_client,
+        tools=tools,
+        ralph=ralph_config,
+        workspace_dir=str(workspace),
+        max_steps=10,
+    )
+
+    task = """创建一个 Python 计算器模块:
+
+1. 创建 calc.py，包含 add, subtract, multiply, divide 四个函数
+2. 创建 test_calc.py，测试这四个函数
+3. 运行测试确保通过
+4. 完成后输出 <promise>TASK COMPLETE</promise>"""
+
+    result, logs = await agent.run(task)
+
+    status = agent.get_ralph_status()
+    if status:
+        print(f"Iterations: {status['state']['iteration']}")
+        print(f"Completed: {status['state']['completed']}")
+        print(f"Reason: {status['state']['completion_reason']}")
+        print(f"Files modified: {status['memory_summary']['files_modified_count']}")
+
+    return result, logs
+
+
+if __name__ == "__main__":
+    asyncio.run(ralph_demo())
+```
+
+#### 核心组件
+
+| 组件 | 功能 |
+|------|------|
+| `RalphConfig` | 配置管理（迭代次数、完成条件等） |
+| `RalphLoop` | 迭代循环控制器，协调各组件 |
+| `ToolResultCache` | 工具结果缓存，支持摘要和完整内容按需获取 |
+| `WorkingMemory` | 结构化工作记忆，持久化到 `.ralph/memory.json` |
+| `ContextManager` | 上下文管理器，协调摘要和迭代历史 |
+| `CompletionDetector` | 多条件完成检测（Promise标签、最大迭代、空闲检测） |
+
+#### Ralph 专用工具
+
+| 工具 | 描述 |
+|------|------|
+| `get_cached_result` | 获取之前工具调用的完整结果 |
+| `get_working_memory` | 查看工作记忆摘要 |
+| `update_working_memory` | 更新进度、发现、待办等 |
+| `signal_completion` | 信号任务完成 |
+
+#### 完成检测条件
+
+| 条件 | 描述 |
+|------|------|
+| `PROMISE_TAG` | 检测 `<promise>TASK COMPLETE</promise>` 标签 |
+| `MAX_ITERATIONS` | 达到最大迭代次数 |
+| `IDLE_THRESHOLD` | 连续 N 次无文件修改 |
+
+#### 配置参数
+
+```python
+@dataclass
+class RalphConfig:
+    enabled: bool = False
+    max_iterations: int = 20
+    completion_promise: str = "TASK COMPLETE"
+    idle_threshold: int = 3
+    context_strategy: ContextStrategy = ContextStrategy.ALL
+    memory_dir: str = ".ralph"
+    summarize_token_threshold: int = 50000
+```
+
+#### 状态查询
+
+```python
+status = agent.get_ralph_status()
+# {
+#     "enabled": True,
+#     "state": {
+#         "iteration": 3,
+#         "completed": True,
+#         "completion_reason": "promise_tag",
+#         "files_modified": ["calc.py", "test_calc.py"]
+#     },
+#     "memory_summary": {
+#         "files_modified_count": 2,
+#         "recent_progress": ["Created calc.py", "Added tests"],
+#         "pending_todos": 0
+#     },
+#     "config": {...}
+# }
+```
 
 ### Sandbox 沙箱隔离
 

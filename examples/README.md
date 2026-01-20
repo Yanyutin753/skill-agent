@@ -44,6 +44,13 @@ export LLM_MODEL=anthropic/claude-3-5-sonnet-20241022
 |------|------|----------|
 | [08_sandbox_execution.py](08_sandbox_execution.py) | Sandbox 隔离执行 | 是 |
 
+### Ralph 迭代模式
+
+| 示例 | 描述 | 需要 API |
+|------|------|----------|
+| [09_ralph_iteration.py](09_ralph_iteration.py) | Ralph 基础用法 | 是 |
+| [10_ralph_advanced.py](10_ralph_advanced.py) | Ralph 高级特性 | 是 |
+
 ## 快速运行
 
 ```bash
@@ -61,6 +68,10 @@ uv run python examples/07_team_collaboration.py
 # 需要 Sandbox 容器的示例
 docker run -d --security-opt seccomp=unconfined -p 8080:8080 ghcr.io/agent-infra/sandbox:latest
 uv run python examples/08_sandbox_execution.py
+
+# Ralph 迭代模式示例
+uv run python examples/09_ralph_iteration.py
+uv run python examples/10_ralph_advanced.py
 ```
 
 ## Graph 执行引擎核心概念
@@ -144,5 +155,8 @@ examples/
 ├── 05_graph_agent_node.py       # AgentNode
 ├── 06_graph_stream.py           # 流式执行
 ├── 07_team_collaboration.py     # Team 协作
-└── 08_sandbox_execution.py      # Sandbox 隔离
+├── 08_sandbox_execution.py      # Sandbox 隔离
+├── 09_ralph_iteration.py        # Ralph 基础用法
+├── 10_ralph_advanced.py         # Ralph 高级特性
+└── acp/                         # ACP 协议示例
 ```
