@@ -315,7 +315,6 @@ export default function Debug() {
   const [currentRun, setCurrentRun] = useState<RunDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [input, setInput] = useState('');
-  const [useTravelTeam, setUseTravelTeam] = useState(false);
   const [sending, setSending] = useState(false);
   const [allExpanded, setAllExpanded] = useState(false);
 
@@ -344,7 +343,7 @@ export default function Debug() {
     if (!input.trim() || sending) return;
     setSending(true);
     try {
-      await sendAgentRequest({ message: input, useTravelTeam });
+      await sendAgentRequest({ message: input });
       setInput('');
       await loadRuns();
       if (runs.length > 0) {
@@ -399,17 +398,6 @@ export default function Debug() {
               placeholder="Enter request..."
               className="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-cyan-500"
             />
-            <button
-              onClick={() => setUseTravelTeam(!useTravelTeam)}
-              className={cn(
-                'px-2 py-2 rounded text-[10px] font-medium border transition-colors',
-                useTravelTeam
-                  ? 'bg-orange-500 text-white border-orange-500'
-                  : 'bg-transparent text-gray-400 border-gray-700 hover:border-orange-500'
-              )}
-            >
-              Travel
-            </button>
             <button
               onClick={handleSend}
               disabled={!input.trim() || sending}

@@ -23,24 +23,15 @@ export async function deleteRun(runId: string): Promise<void> {
 
 export interface SendRequestOptions {
   message: string;
-  useTravelTeam?: boolean;
+  session_id?: string;
+  user_id?: string;
 }
 
 export async function sendAgentRequest(options: SendRequestOptions): Promise<unknown> {
-  const { message, useTravelTeam } = options;
-
-  const endpoint = useTravelTeam
-    ? `${API_BASE}/api/v1/team/run`
-    : `${API_BASE}/api/v1/agent/run`;
-
-  const body = useTravelTeam
-    ? { message, team_name: 'travel_team', members: ['researcher', 'writer'] }
-    : { message };
-
-  const res = await fetch(endpoint, {
+  const res = await fetch(`${API_BASE}/api/v1/agent/run`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify(options),
   });
 
   if (!res.ok) {

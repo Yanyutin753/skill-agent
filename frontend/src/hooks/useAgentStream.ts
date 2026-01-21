@@ -13,7 +13,7 @@ export function useAgentStream() {
   const sessionStore = useSessionStore();
 
   const sendMessage = useCallback(
-    async (content: string, max_steps?: number) => {
+    async (content: string) => {
       let currentSession = sessionStore.getCurrentSession();
       if (!currentSession) {
         currentSession = sessionStore.createSession('新对话');
@@ -32,12 +32,9 @@ export function useAgentStream() {
       const assistantMessageId = uuidv4();
       chatStore.startStreaming(assistantMessageId);
 
-      // Prepare request with session_id for multi-turn conversation
       const request: AgentRequest = {
         message: content,
-        max_steps: max_steps || 150,
         session_id: currentSession.id,
-        num_history_runs: 3,
       };
 
       try {

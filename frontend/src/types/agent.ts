@@ -2,10 +2,8 @@
 
 export interface AgentRequest {
   message: string;
-  workspace_dir?: string;
-  max_steps?: number;
   session_id?: string;
-  num_history_runs?: number;
+  user_id?: string;
 }
 
 export interface UserInputField {

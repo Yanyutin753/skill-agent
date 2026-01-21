@@ -111,38 +111,8 @@ class AgentConfig(BaseModel):
 class AgentRequest(BaseModel):
     """Request to agent endpoint."""
     message: str = Field(..., description="User message/task")
-
-    # Team mode
-    use_team: Optional[bool] = Field(
-        False,
-        description="Use builtin web research team (with web_search and web_spider agents)"
-    )
-
-    # Session management
-    user_id: Optional[str] = Field(
-        "default",
-        description="User ID for memory isolation"
-    )
-    session_id: Optional[str] = Field(
-        None,
-        description="Session ID for multi-turn conversation. If provided, history context will be loaded."
-    )
-    num_history_runs: Optional[int] = Field(
-        3,
-        ge=1,
-        le=20,
-        description="Number of recent runs to include in history context"
-    )
-
-    # Dynamic configuration (overrides defaults)
-    config: Optional[AgentConfig] = Field(
-        None,
-        description="Dynamic agent configuration. If not provided, uses settings defaults."
-    )
-
-    # Backward compatibility
-    workspace_dir: Optional[str] = Field(None, description="DEPRECATED: Use config.workspace_dir instead")
-    max_steps: Optional[int] = Field(None, description="DEPRECATED: Use config.max_steps instead")
+    session_id: Optional[str] = Field(None, description="Session ID for multi-turn conversation")
+    user_id: Optional[str] = Field("default", description="User ID for memory isolation")
 
 
 class AgentResponse(BaseModel):

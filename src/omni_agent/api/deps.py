@@ -710,3 +710,29 @@ def get_builtin_research_team(
         workspace_dir=str(workspace_path),
     )
 
+
+def get_default_team(
+    llm_client: Annotated[LLMClient, Depends(get_llm_client)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> "Team":
+    """获取默认的通用任务执行团队实例.
+
+    创建一个包含三个专业子 Agent 的团队：
+    - General: 处理简单任务、问答、基础文件操作
+    - Coder: 处理代码编写、修改、调试
+    - Researcher: 处理信息搜索、网页内容获取
+
+    Leader 只负责任务分配和结果汇总，不直接执行任务。
+    """
+    from omni_agent.core.builtin_teams import create_default_team
+
+    workspace_path = Path(settings.AGENT_WORKSPACE_DIR)
+    workspace_path.mkdir(parents=True, exist_ok=True)
+    tools = get_tools(str(workspace_path))
+
+    return create_default_team(
+        llm_client=llm_client,
+        available_tools=tools,
+        workspace_dir=str(workspace_path),
+    )
+
