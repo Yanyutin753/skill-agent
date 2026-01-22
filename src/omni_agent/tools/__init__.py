@@ -11,6 +11,15 @@ from .file_tools import (
 from .bash_tool import BashTool
 from .note_tool import SessionNoteTool, RecallNoteTool
 from .spawn_agent_tool import SpawnAgentTool
+from .memory_tools import (
+    StoreSemanticMemoryTool,
+    StoreWorkingMemoryTool,
+    UpdateTaskStatusTool,
+    RecordDecisionTool,
+    RecallMemoryTool,
+    GetMemorySummaryTool,
+    create_memory_tools,
+)
 from .user_input_tool import (
     GetUserInputTool,
     UserInputField,
@@ -37,4 +46,11 @@ __all__ = [
     "UserInputRequest",
     "is_user_input_tool_call",
     "parse_user_input_fields",
+    "StoreSemanticMemoryTool",
+    "StoreWorkingMemoryTool",
+    "UpdateTaskStatusTool",
+    "RecordDecisionTool",
+    "RecallMemoryTool",
+    "GetMemorySummaryTool",
+    "create_memory_tools",
 ]

@@ -81,3 +81,5 @@ mcp.json
 .kiro/
 # Agent memory files
 .agent_memories/
+
+.specs/

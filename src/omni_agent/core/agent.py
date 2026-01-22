@@ -21,7 +21,6 @@
 """
 import json
 import time
-from abc import ABC
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -39,6 +38,8 @@ from omni_agent.skills.skill_loader import SkillLoader
 from omni_agent.tools.base import Tool
 from omni_agent.tools.user_input_tool import GetUserInputTool, is_user_input_tool_call, parse_user_input_fields
 from omni_agent.core.ralph import RalphConfig, RalphLoop
+from omni_agent.core.hooks import AgentHook, HookContext
+from omni_agent.core.memory_hook import MemoryHook, create_memory_hook
 
 
 class EventType(Enum):
@@ -241,35 +242,6 @@ class AgentState:
             last_checkpoint_id=checkpoint.id,
             thread_id=checkpoint.thread_id,
         )
-
-
-@dataclass
-class HookContext:
-    """Hook 执行上下文.
-    
-    传递给 AgentHook 的上下文信息，包含当前状态和元数据。
-    """
-    state: AgentState
-    step: int = 0
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-
-class AgentHook(ABC):
-    """Agent 钩子基类.
-    
-    定义执行前、执行中、执行后的扩展点，允许自定义行为注入。
-    通过 priority 属性控制多个钩子的执行顺序。
-    """
-    priority: int = 100
-
-    async def before_run(self, ctx: HookContext) -> None:
-        pass
-
-    async def on_step(self, ctx: HookContext, step_data: dict[str, Any]) -> None:
-        pass
-
-    async def after_run(self, ctx: HookContext, result: str, success: bool) -> None:
-        pass
 
 
 class HookManager:
@@ -972,6 +944,8 @@ class Agent:
         session_id: Optional[str] = None,
         parallel_tools: bool = False,
         ralph: bool | RalphConfig = False,
+        enable_memory: bool = False,
+        memory_base_dir: str = "./.agent_memories",
     ) -> None:
         self.llm = llm_client
         self.name = name or "agent"
@@ -983,8 +957,15 @@ class Agent:
         self.user_id = user_id
         self.session_id = session_id
         self.enable_logging = enable_logging
+        self.enable_memory = enable_memory
 
         self.workspace_dir.mkdir(parents=True, exist_ok=True)
+
+        self._memory_hook: Optional[MemoryHook] = None
+        if enable_memory and user_id and session_id:
+            self._memory_hook = create_memory_hook(
+                user_id, session_id, memory_base_dir, llm_client
+            )
 
         self._state = AgentState(max_steps=max_steps)
         self._events = EventEmitter()
@@ -1025,6 +1006,9 @@ class Agent:
         )
         self._loop.set_tools(self.tools)
 
+        if self._memory_hook:
+            self._loop.hooks.add(self._memory_hook)
+
         self.tracer: Optional[LangfuseTracer] = None
         self.execution_logs: list[dict[str, Any]] = []
 
@@ -1042,6 +1026,10 @@ class Agent:
         else:
             self.system_prompt = self._build_default_prompt()
 
+        if self._memory_hook:
+            memory_context = self._memory_hook.get_context_for_prompt()
+            self.system_prompt = f"{self.system_prompt}\n\n{memory_context}"
+
         self._state.messages = [Message(role="system", content=self.system_prompt)]
 
     @property
@@ -1055,6 +1043,12 @@ class Agent:
     @property
     def hooks(self) -> HookManager:
         return self._loop.hooks
+
+    def add_hook(self, hook: AgentHook) -> None:
+        self._loop.hooks.add(hook)
+
+    def remove_hook(self, hook: AgentHook) -> None:
+        self._loop.hooks.remove(hook)
 
     def _collect_tool_instructions(self) -> list[str]:
         instructions = []

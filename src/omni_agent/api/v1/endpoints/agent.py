@@ -1,20 +1,24 @@
 """Agent 执行端点。"""
+import json
 import time
-from typing import Optional
+from typing import AsyncIterator
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 
 from omni_agent.api.deps import (
-    get_settings,
     get_agent_session_manager,
     get_default_team,
+    get_llm_client,
+    get_settings,
+    get_tools,
 )
-from omni_agent.core import FileMemory
-from omni_agent.core.team import Team
+from omni_agent.core import Agent, LLMClient, Memory
 from omni_agent.core.config import Settings
 from omni_agent.core.session import AgentRunRecord
 from omni_agent.core.session_manager import UnifiedAgentSessionManager
+from omni_agent.core.team import Team
 from omni_agent.schemas.message import AgentRequest, AgentResponse
 
 router = APIRouter()
@@ -25,7 +29,7 @@ async def run_agent(
     request: AgentRequest,
     team: Team = Depends(get_default_team),
     settings: Settings = Depends(get_settings),
-    session_manager: Optional[UnifiedAgentSessionManager] = Depends(get_agent_session_manager),
+    session_manager: UnifiedAgentSessionManager | None = Depends(get_agent_session_manager),
 ) -> AgentResponse:
     """执行 Agent 任务。
 
@@ -83,7 +87,7 @@ async def run_agent(
             await session_manager.add_run(request.session_id, run_record)
 
         if request.session_id:
-            memory = FileMemory(
+            memory = Memory(
                 user_id=request.user_id or "default",
                 session_id=request.session_id,
             )
@@ -118,3 +122,62 @@ async def run_agent(
         raise HTTPException(
             status_code=500, detail=f"Agent execution failed: {str(e)}"
         ) from e
+
+
+@router.post("/run/stream")
+async def run_agent_stream(
+    request: AgentRequest,
+    llm_client: LLMClient = Depends(get_llm_client),
+    settings: Settings = Depends(get_settings),
+) -> StreamingResponse:
+    """流式执行 Agent 任务。
+
+    使用 SSE (Server-Sent Events) 流式返回 Agent 执行过程。
+
+    Args:
+        request: Agent 请求，包含 message, user_id, session_id
+
+    Returns:
+        SSE 流，包含执行过程中的各种事件
+    """
+    if not settings.LLM_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="API key not configured. Set LLM_API_KEY environment variable.",
+        )
+
+    tools = get_tools(settings.AGENT_WORKSPACE_DIR)
+    user_id = request.user_id or "default"
+    session_id = request.session_id or str(uuid4())
+    enable_memory = bool(request.session_id)
+
+    agent = Agent(
+        llm_client=llm_client,
+        system_prompt=settings.SYSTEM_PROMPT,
+        tools=tools,
+        max_steps=settings.AGENT_MAX_STEPS,
+        workspace_dir=settings.AGENT_WORKSPACE_DIR,
+        user_id=user_id,
+        session_id=session_id,
+        enable_memory=enable_memory,
+        memory_base_dir="./.agent_memories",
+    )
+
+    agent.add_user_message(request.message)
+
+    async def generate() -> AsyncIterator[str]:
+        try:
+            async for event in agent.run_stream():
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'data': {'message': str(e)}}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

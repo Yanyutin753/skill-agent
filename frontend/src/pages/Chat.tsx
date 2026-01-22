@@ -1,17 +1,54 @@
-// 简单的 MVP 聊天页面
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Send, Loader2, Trash2, Plus, Bot, User, Database, Bug } from 'lucide-react';
+import { Send, Loader2, Trash2, Plus, Bot, User, Database, Bug, ChevronDown, ChevronRight } from 'lucide-react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useChatStore } from '@/stores/chatStore';
 import { useAgentStream } from '@/hooks/useAgentStream';
 import UserInputForm from '@/components/UserInputForm';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import MarkdownRenderer from '@/components/MarkdownRenderer';
+
+function mergeInlineCodeToBlock(text: string): string {
+  const lines = text.split('\n');
+  const result: string[] = [];
+  let codeLines: string[] = [];
+  let inCodeSequence = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    const isCodeLine = /^`[^`]+`$/.test(line) && !line.includes('``');
+
+    if (isCodeLine) {
+      const code = line.slice(1, -1);
+      codeLines.push(code);
+      inCodeSequence = true;
+    } else {
+      if (inCodeSequence && codeLines.length >= 2) {
+        result.push('```');
+        result.push(...codeLines);
+        result.push('```');
+      } else if (codeLines.length === 1) {
+        result.push('`' + codeLines[0] + '`');
+      }
+      codeLines = [];
+      inCodeSequence = false;
+      result.push(lines[i]);
+    }
+  }
+
+  if (inCodeSequence && codeLines.length >= 2) {
+    result.push('```');
+    result.push(...codeLines);
+    result.push('```');
+  } else if (codeLines.length === 1) {
+    result.push('`' + codeLines[0] + '`');
+  }
+
+  return result.join('\n');
+}
 
 function cleanContent(content: string): string {
   if (!content) return content;
-  return content
+  let cleaned = content
     .replace(/<has_function_call>[A-Za-z0-9.\-\s]*/g, '')
     .replace(/<\/has_function_call>/g, '')
     .replace(/^\s+/, '')
@@ -19,6 +56,26 @@ function cleanContent(content: string): string {
     .replace(/([^\n])(#{1,6}\s)/g, '$1\n\n$2')
     .replace(/(\d+\.)\*\*\s*([^*]+)\*\*/g, '$1 **$2**')
     .replace(/-([^\s\n])/g, '- $1');
+
+  cleaned = mergeInlineCodeToBlock(cleaned);
+  return cleaned;
+}
+
+interface ThinkingBlockProps {
+  content: string;
+}
+
+function ThinkingBlock({ content }: ThinkingBlockProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  return (
+    <div className="thinking-block">
+      <button className="thinking-toggle" onClick={() => setIsOpen(!isOpen)}>
+        {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+        <span>Thinking Process</span>
+      </button>
+      {isOpen && <div className="thinking-content">{content}</div>}
+    </div>
+  );
 }
 
 export default function Chat() {
@@ -29,27 +86,30 @@ export default function Chat() {
   const { sessions, currentSessionId, loadSessions, createSession, switchSession, deleteSession } =
     useSessionStore();
   const { streamingMessage } = useChatStore();
-  const { 
-    sendMessage, 
-    isStreaming, 
-    currentStep, 
+  const {
+    sendMessage,
+    isStreaming,
+    currentStep,
     maxSteps,
     pendingUserInput,
     isWaitingForInput,
     clearPendingUserInput,
   } = useAgentStream();
 
-  const handleUserInputSubmit = async (values: Record<string, any>) => {
-    clearPendingUserInput();
-    const inputSummary = Object.entries(values)
-      .map(([k, v]) => `${k}: ${v}`)
-      .join(', ');
-    await sendMessage(`[用户输入] ${inputSummary}`);
-  };
+  const handleUserInputSubmit = useCallback(
+    async (values: Record<string, string>) => {
+      clearPendingUserInput();
+      const inputSummary = Object.entries(values)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(', ');
+      await sendMessage(`[用户输入] ${inputSummary}`);
+    },
+    [clearPendingUserInput, sendMessage]
+  );
 
-  const handleUserInputCancel = () => {
+  const handleUserInputCancel = useCallback(() => {
     clearPendingUserInput();
-  };
+  }, [clearPendingUserInput]);
 
   const currentSession = sessions.find((s) => s.id === currentSessionId);
 
@@ -61,7 +121,6 @@ export default function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [currentSession?.messages, streamingMessage]);
 
-  // 文本框自动调整高度
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -69,22 +128,24 @@ export default function Chat() {
     }
   }, [input]);
 
-  const handleSubmit = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!input.trim() || isStreaming) return;
-
-    const message = input.trim();
-    setInput('');
-    if (textareaRef.current) textareaRef.current.style.height = 'auto';
-    await sendMessage(message);
-  };
+  const handleSubmit = useCallback(
+    async (e?: React.FormEvent) => {
+      e?.preventDefault();
+      if (!input.trim() || isStreaming) return;
+      const message = input.trim();
+      setInput('');
+      if (textareaRef.current) textareaRef.current.style.height = 'auto';
+      await sendMessage(message);
+    },
+    [input, isStreaming, sendMessage]
+  );
 
   const allMessages = useMemo(() => {
     const messages = [
       ...(currentSession?.messages || []),
       ...(streamingMessage ? [streamingMessage] : []),
     ];
-    return messages.map(msg => ({
+    return messages.map((msg) => ({
       ...msg,
       content: msg.role === 'assistant' ? cleanContent(msg.content) : msg.content,
     }));
@@ -92,26 +153,29 @@ export default function Chat() {
 
   return (
     <div className="flex h-screen bg-[var(--bg-primary)]">
-      {/* 侧边栏 */}
-      <div className="w-[260px] flex-shrink-0 flex flex-col bg-[var(--bg-sidebar)] text-[var(--text-sidebar)] transition-all duration-300">
+      <aside className="w-64 flex-shrink-0 flex flex-col bg-[var(--bg-sidebar)] border-r border-[var(--border-sidebar)]">
         <div className="p-3">
           <button
             onClick={() => createSession()}
-            className="w-full flex items-center gap-3 px-3 py-3 rounded-md border border-[var(--border-sidebar)] hover:bg-[var(--bg-sidebar-hover)] transition-colors text-sm text-left"
+            className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-[var(--border-sidebar)] hover:bg-[var(--bg-sidebar-hover)] transition-colors text-sm font-medium"
           >
             <Plus className="w-4 h-4" />
             New chat
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
+        <div className="flex-1 overflow-y-auto px-2">
           <div className="text-xs font-medium text-[var(--text-sidebar-secondary)] px-3 py-2">
-            Today
+            Recent
           </div>
           {sessions.map((session) => (
             <div
               key={session.id}
-              className="group flex items-center gap-3 px-3 py-3 rounded-md cursor-pointer hover:bg-[var(--bg-sidebar-hover)] transition-colors text-sm relative"
+              className={`group flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-colors text-sm relative mb-0.5 ${
+                session.id === currentSessionId
+                  ? 'bg-[var(--bg-sidebar-hover)]'
+                  : 'hover:bg-[var(--bg-sidebar-hover)]'
+              }`}
               onClick={() => switchSession(session.id)}
             >
               <div className="flex-1 truncate pr-6 text-[var(--text-sidebar)]">
@@ -122,118 +186,97 @@ export default function Chat() {
                   e.stopPropagation();
                   deleteSession(session.id);
                 }}
-                className="absolute right-2 opacity-0 group-hover:opacity-100 p-1 hover:text-gray-900 text-[var(--text-sidebar-secondary)] transition-all"
+                className="absolute right-2 opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 text-[var(--text-sidebar-secondary)] transition-all"
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
-              {/* 长标题的渐变遮罩 */}
-              <div className="absolute right-8 top-0 bottom-0 w-8 bg-gradient-to-l from-[var(--bg-sidebar)] to-transparent group-hover:from-[var(--bg-sidebar-hover)] pointer-events-none" />
             </div>
           ))}
         </div>
 
-        {/* 底部操作区 */}
         <div className="p-3 border-t border-[var(--border-sidebar)] space-y-1">
-          {/* 知识库入口 */}
           <Link
             to="/knowledge"
-            className="flex items-center gap-3 px-3 py-3 rounded-md hover:bg-[var(--bg-sidebar-hover)] cursor-pointer transition-colors text-sm"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[var(--bg-sidebar-hover)] transition-colors text-sm"
           >
-            <div className="w-8 h-8 rounded bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-              <Database className="w-4 h-4 text-white" />
+            <div className="w-7 h-7 rounded-md bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+              <Database className="w-3.5 h-3.5 text-white" />
             </div>
-            <div className="font-medium">知识库</div>
+            <span className="font-medium">Knowledge</span>
           </Link>
 
-          {/* 调试控制台入口 - Langfuse */}
           <a
-            href={import.meta.env.VITE_LANGFUSE_URL || "https://cloud.langfuse.com"}
+            href={import.meta.env.VITE_LANGFUSE_URL || 'https://cloud.langfuse.com'}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-3 px-3 py-3 rounded-md hover:bg-[var(--bg-sidebar-hover)] cursor-pointer transition-colors text-sm"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[var(--bg-sidebar-hover)] transition-colors text-sm"
           >
-            <div className="w-8 h-8 rounded bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center">
-              <Bug className="w-4 h-4 text-white" />
+            <div className="w-7 h-7 rounded-md bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+              <Bug className="w-3.5 h-3.5 text-white" />
             </div>
-            <div className="font-medium">调试控制台</div>
+            <span className="font-medium">Debug</span>
           </a>
 
-          {/* 用户信息 */}
-          <div className="flex items-center gap-3 px-3 py-3 rounded-md hover:bg-[var(--bg-sidebar-hover)] cursor-pointer transition-colors">
-            <div className="w-8 h-8 rounded bg-green-700 flex items-center justify-center text-white font-medium text-xs">
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-[var(--bg-sidebar-hover)] cursor-pointer transition-colors">
+            <div className="w-7 h-7 rounded-md bg-[var(--accent-green)] flex items-center justify-center text-white font-medium text-xs">
               U
             </div>
-            <div className="text-sm font-medium">User</div>
+            <span className="text-sm font-medium">User</span>
           </div>
         </div>
-      </div>
+      </aside>
 
-      {/* 主聊天区域 */}
-      <div className="flex-1 flex flex-col relative min-w-0">
-        {/* 消息列表 */}
-        <div className="flex-1 overflow-y-auto scroll-smooth">
-          <div className="max-w-3xl mx-auto px-4 pb-32 pt-4">
+      <main className="flex-1 flex flex-col relative min-w-0">
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-3xl mx-auto px-6 pb-36 pt-8">
             {allMessages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-4">
-                <div className="w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center mb-4">
-                   <Bot className="w-8 h-8 text-[var(--text-primary)]" />
+              <div className="flex flex-col items-center justify-center h-[60vh] text-center">
+                <div className="w-14 h-14 rounded-2xl bg-[var(--accent-green)] flex items-center justify-center mb-6">
+                  <Bot className="w-7 h-7 text-white" />
                 </div>
-                <h2 className="text-2xl font-semibold">How can I help you today?</h2>
+                <h2 className="text-2xl font-semibold mb-2">How can I help you today?</h2>
+                <p className="text-[var(--text-secondary)] text-sm">
+                  Ask me anything or start a conversation
+                </p>
               </div>
             ) : (
               allMessages.map((message) => (
-                <div key={message.id} className="group w-full text-[var(--text-primary)] border-b border-black/5 dark:border-white/5 border-none">
-                  <div className="text-base gap-4 md:gap-6 md:max-w-3xl lg:max-w-[40rem] xl:max-w-[48rem] p-4 md:py-6 flex lg:px-0 m-auto">
-                    
-                    {/* 头像 */}
-                    <div className="flex-shrink-0 flex flex-col relative items-end">
-                      <div className="w-8 h-8 relative flex">
-                        {message.role === 'user' ? (
-                           <div className="bg-black/10 rounded-sm w-8 h-8 flex items-center justify-center">
-                             <User className="w-5 h-5 text-gray-600" />
-                           </div>
-                        ) : (
-                          <div className="bg-[var(--accent-primary)] rounded-sm w-8 h-8 flex items-center justify-center">
-                            <Bot className="w-5 h-5 text-white" />
-                          </div>
-                        )}
-                      </div>
+                <div key={message.id} className="mb-6 fade-in">
+                  <div className="flex gap-4">
+                    <div className="flex-shrink-0">
+                      {message.role === 'user' ? (
+                        <div className="w-8 h-8 rounded-lg bg-[var(--bg-secondary)] flex items-center justify-center">
+                          <User className="w-4 h-4 text-[var(--text-secondary)]" />
+                        </div>
+                      ) : (
+                        <div className="w-8 h-8 rounded-lg bg-[var(--accent-green)] flex items-center justify-center">
+                          <Bot className="w-4 h-4 text-white" />
+                        </div>
+                      )}
                     </div>
 
-                    {/* 内容 */}
-                    <div className="relative flex-1 overflow-hidden">
+                    <div className="flex-1 min-w-0 pt-0.5">
                       {message.role === 'user' ? (
-                        <div className="font-medium">{message.content}</div>
+                        <p className="font-medium leading-relaxed">{message.content}</p>
                       ) : (
-                        <div className="prose prose-slate dark:prose-invert max-w-none leading-7">
-                           {message.thinking && (
-                            <details className="mb-4 text-sm bg-gray-50 rounded-md border border-gray-100 open:pb-2">
-                              <summary className="cursor-pointer px-3 py-2 text-gray-500 hover:text-gray-700 font-medium select-none list-none flex items-center gap-2">
-                                <span className="text-xs uppercase tracking-wider">Thinking Process</span>
-                              </summary>
-                              <div className="px-3 pb-2 text-gray-600 whitespace-pre-wrap font-mono text-xs">
-                                {message.thinking}
-                              </div>
-                            </details>
-                          )}
-                          <div className="markdown-content">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                              {message.content || (message.isStreaming ? '' : '...')}
-                            </ReactMarkdown>
-                          </div>
+                        <>
+                          {message.thinking && <ThinkingBlock content={message.thinking} />}
+                          <MarkdownRenderer
+                            content={message.content || (message.isStreaming ? '' : '...')}
+                          />
                           {message.isStreaming && message.content && (
-                            <span className="inline-block w-2 h-4 ml-1 bg-black animate-pulse align-middle" />
+                            <span className="inline-block w-1.5 h-4 ml-0.5 bg-[var(--accent-green)] animate-pulse rounded-sm" />
                           )}
-                        </div>
+                        </>
                       )}
                     </div>
                   </div>
                 </div>
               ))
             )}
-            
+
             {isWaitingForInput && pendingUserInput && (
-              <div className="max-w-3xl mx-auto">
+              <div className="mt-4">
                 <UserInputForm
                   fields={pendingUserInput.fields}
                   context={pendingUserInput.context}
@@ -242,25 +285,23 @@ export default function Chat() {
                 />
               </div>
             )}
-            
+
             <div ref={messagesEndRef} className="h-4" />
           </div>
         </div>
 
-        {/* 输入区域 */}
-        <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-white via-white to-transparent pt-10 pb-6">
-          <div className="max-w-3xl mx-auto px-4">
-             {/* 状态指示 */}
-             {isStreaming && (
-              <div className="mb-2 flex justify-center">
-                 <div className="bg-white shadow-sm border border-gray-100 rounded-full px-4 py-1 text-xs font-medium text-gray-500 flex items-center gap-2">
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    Generating response... ({currentStep}/{maxSteps})
-                 </div>
+        <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)] to-transparent pt-12 pb-6">
+          <div className="max-w-3xl mx-auto px-6">
+            {isStreaming && (
+              <div className="mb-3 flex justify-center">
+                <div className="bg-white shadow-sm border border-[var(--border-color)] rounded-full px-4 py-1.5 text-xs font-medium text-[var(--text-secondary)] flex items-center gap-2">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Generating ({currentStep}/{maxSteps})
+                </div>
               </div>
             )}
 
-            <div className="relative flex items-end w-full p-3 bg-white border border-gray-200 shadow-[0_0_15px_rgba(0,0,0,0.1)] rounded-xl focus-within:shadow-[0_0_20px_rgba(0,0,0,0.15)] focus-within:border-gray-300 transition-all">
+            <div className="relative bg-white rounded-2xl border border-[var(--border-color)] shadow-[var(--shadow-input)] focus-within:shadow-lg focus-within:border-[var(--accent-green)] transition-all">
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -271,30 +312,31 @@ export default function Chat() {
                     handleSubmit();
                   }
                 }}
-                placeholder="Message ChatGPT..."
-                className="w-full max-h-[200px] py-[10px] pr-10 md:py-3.5 md:pr-12 bg-transparent border-0 focus:ring-0 resize-none outline-none text-base"
+                placeholder="Message..."
+                className="w-full px-4 py-3.5 pr-12 bg-transparent border-0 focus:ring-0 resize-none outline-none text-[15px] max-h-48"
                 rows={1}
-                style={{ minHeight: '44px' }}
+                style={{ minHeight: '52px' }}
                 disabled={isStreaming}
               />
               <button
                 onClick={() => handleSubmit()}
                 disabled={!input.trim() || isStreaming}
-                className="absolute right-3 bottom-3 p-1.5 rounded-md bg-black text-white disabled:bg-gray-100 disabled:text-gray-400 transition-colors"
+                className="absolute right-3 bottom-3 p-2 rounded-lg bg-[var(--accent-green)] text-white disabled:bg-gray-200 disabled:text-gray-400 transition-colors hover:opacity-90"
               >
                 {isStreaming ? (
-                   <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <Send className="w-4 h-4" />
                 )}
               </button>
             </div>
-            <div className="text-center mt-2 text-xs text-gray-400">
-              ChatGPT can make mistakes. Check important info.
-            </div>
+
+            <p className="text-center mt-2.5 text-xs text-[var(--text-secondary)]">
+              AI may produce inaccurate information
+            </p>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

@@ -2,16 +2,16 @@
 from .agent import (
     Agent,
     AgentEvent,
-    AgentHook,
     AgentLoop,
     AgentState,
     AgentStatus,
     EventEmitter,
     EventType,
-    HookContext,
     HookManager,
     LoopConfig,
 )
+from .hooks import AgentHook, HookContext
+from .agent_node import AgentNode, ToolNode, create_router
 from .checkpoint import (
     Checkpoint,
     CheckpointConfig,
@@ -20,19 +20,19 @@ from .checkpoint import (
     MemoryCheckpointStorage,
 )
 from .config import settings
-from .file_memory import FileMemory, FileMemoryManager
 from .graph import (
-    START,
     END,
-    StateGraph,
+    START,
     CompiledGraph,
-    Node,
     Edge,
     EdgeType,
     GraphBuilder,
+    Node,
+    StateGraph,
 )
-from .agent_node import AgentNode, ToolNode, create_router
 from .llm_client import LLMClient
+from .memory import Memory, MemoryEntry, MemoryManager, MemoryType
+from .memory_hook import MemoryHook, create_memory_hook
 from .ralph import (
     CompletionCondition,
     CompletionDetector,
@@ -45,7 +45,7 @@ from .ralph import (
     ToolResultCache,
     WorkingMemory,
 )
-from .tool_executor import ToolExecutor, ToolExecutionResult
+from .tool_executor import ToolExecutionResult, ToolExecutor
 from .workspace import WorkspaceManager, get_workspace_manager
 
 __all__ = [
@@ -66,8 +66,12 @@ __all__ = [
     "EventEmitter",
     "EventType",
     "FileCheckpointStorage",
-    "FileMemory",
-    "FileMemoryManager",
+    "Memory",
+    "MemoryManager",
+    "MemoryEntry",
+    "MemoryType",
+    "MemoryHook",
+    "create_memory_hook",
     "GraphBuilder",
     "HookContext",
     "HookManager",
