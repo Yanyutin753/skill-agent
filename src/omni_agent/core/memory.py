@@ -377,7 +377,15 @@ class Memory:
             lines.append("当前任务:")
             for t in data["current_tasks"]:
                 lines.append(f"  - {t}")
-        
+
+        if data["recent_conversation"]:
+            lines.append("最近对话摘要:")
+            for conv in data["recent_conversation"][-3:]:
+                role = "用户" if conv["role"] == "user" else "助手"
+                content = conv["content"][:80] if conv["content"] else ""
+                if content:
+                    lines.append(f"  {role}: {content}...")
+
         lines.append("</user_memory>")
         return "\n".join(lines)
 
@@ -407,6 +415,69 @@ class Memory:
         }
         self._summary = MemorySummary()
         self._save()
+
+    def compress(
+        self,
+        max_profile: int = 3,
+        max_task: int = 5,
+        max_session: int = 6,
+        max_habit: int = 3,
+    ) -> dict[str, int]:
+        """压缩记忆，去除重复和过期内容。
+
+        Args:
+            max_profile: 保留的最大 profile 数量
+            max_task: 保留的最大 active task 数量
+            max_session: 保留的最大 session 数量（建议为偶数，对应对话轮数）
+            max_habit: 保留的最大 habit 数量
+
+        Returns:
+            各类型压缩前后的数量变化
+        """
+        stats = {}
+
+        before = len(self._memories["profile"])
+        self._memories["profile"] = self._memories["profile"][-max_profile:]
+        stats["profile"] = before - len(self._memories["profile"])
+
+        before = len(self._memories["task"])
+        active_tasks = [
+            t for t in self._memories["task"]
+            if t.get("metadata", {}).get("status") != "completed"
+        ]
+        self._memories["task"] = active_tasks[-max_task:]
+        stats["task"] = before - len(self._memories["task"])
+
+        before = len(self._memories["session"])
+        self._memories["session"] = self._memories["session"][-max_session:]
+        stats["session"] = before - len(self._memories["session"])
+
+        before = len(self._memories["habit"])
+        self._memories["habit"] = self._memories["habit"][-max_habit:]
+        stats["habit"] = before - len(self._memories["habit"])
+
+        import time
+        self._summary.last_compressed_at = time.time()
+        self._save()
+
+        total_removed = sum(stats.values())
+        if total_removed > 0:
+            logger.info(f"Memory compressed: removed {total_removed} items {stats}")
+
+        return stats
+
+    def needs_compression(
+        self,
+        threshold_profile: int = 5,
+        threshold_task: int = 8,
+        threshold_session: int = 10,
+    ) -> bool:
+        """检查是否需要压缩。"""
+        return (
+            len(self._memories["profile"]) > threshold_profile
+            or len(self._memories["task"]) > threshold_task
+            or len(self._memories["session"]) > threshold_session
+        )
 
     @property
     def meta(self) -> MemoryMeta:

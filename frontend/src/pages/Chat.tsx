@@ -141,9 +141,10 @@ export default function Chat() {
   );
 
   const allMessages = useMemo(() => {
+    const showStreamingMessage = streamingMessage && streamingMessage.content;
     const messages = [
       ...(currentSession?.messages || []),
-      ...(streamingMessage ? [streamingMessage] : []),
+      ...(showStreamingMessage ? [streamingMessage] : []),
     ];
     return messages.map((msg) => ({
       ...msg,
@@ -286,21 +287,30 @@ export default function Chat() {
               </div>
             )}
 
+            {isStreaming && !streamingMessage?.content && (
+              <div className="mb-6 fade-in">
+                <div className="flex gap-4">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 rounded-lg bg-[var(--accent-green)] flex items-center justify-center">
+                      <Bot className="w-4 h-4 text-white" />
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0 pt-1.5">
+                    <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                      <Loader2 className="w-4 h-4 animate-spin text-[var(--accent-green)]" />
+                      <span>Thinking ({currentStep}/{maxSteps})</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div ref={messagesEndRef} className="h-4" />
           </div>
         </div>
 
         <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)] to-transparent pt-12 pb-6">
           <div className="max-w-3xl mx-auto px-6">
-            {isStreaming && (
-              <div className="mb-3 flex justify-center">
-                <div className="bg-white shadow-sm border border-[var(--border-color)] rounded-full px-4 py-1.5 text-xs font-medium text-[var(--text-secondary)] flex items-center gap-2">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  Generating ({currentStep}/{maxSteps})
-                </div>
-              </div>
-            )}
-
             <div className="relative bg-white rounded-2xl border border-[var(--border-color)] shadow-[var(--shadow-input)] focus-within:shadow-lg focus-within:border-[var(--accent-green)] transition-all">
               <textarea
                 ref={textareaRef}

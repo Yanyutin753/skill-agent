@@ -60,7 +60,7 @@ def _clean_content(content: str) -> str:
         return content
     for pattern in CONTENT_FILTER_PATTERNS:
         content = pattern.sub("", content)
-    return content.lstrip()
+    return content
 
 
 class LLMClient:
