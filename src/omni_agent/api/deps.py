@@ -102,9 +102,14 @@ async def initialize_mcp_tools() -> None:
 
     try:
         import sys
+        import tempfile
+        from pathlib import Path
+
+        # 使用跨平台的临时目录
+        temp_dir = Path(tempfile.gettempdir())
 
         # 强制刷新以确保输出可见
-        debug_log = open("/tmp/mcp_init_debug.log", "w")
+        debug_log = open(temp_dir / "mcp_init_debug.log", "w", encoding="utf-8")
         debug_log.write("=== MCP Initialization Debug Log ===\n")
         debug_log.write(f"ENABLE_MCP: {settings.ENABLE_MCP}\n")
         debug_log.write(f"MCP_CONFIG_PATH: {settings.MCP_CONFIG_PATH}\n")
@@ -142,9 +147,12 @@ async def initialize_mcp_tools() -> None:
         debug_log.close()
     except Exception as e:
         import traceback
+        import tempfile
+        from pathlib import Path
         error_msg = f"❌ Error during MCP initialization: {e}\n{traceback.format_exc()}"
         print(error_msg, flush=True)
-        with open("/tmp/mcp_init_error.log", "w") as f:
+        temp_dir = Path(tempfile.gettempdir())
+        with open(temp_dir / "mcp_init_error.log", "w", encoding="utf-8") as f:
             f.write(error_msg)
 
 
